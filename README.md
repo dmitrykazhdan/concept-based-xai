@@ -30,7 +30,7 @@ to get the datasets run script datasets/download_datasets.sh
 - See 'requirements.txt' for the rest
 
 
-###Directories:
+### Directories:
 
 - Methods: defines the concept-based methods. Note: SSCC defines wrappers around these methods, that turn then into semi-supervised concept labelling methods.
 - Experiments: experimental setups (To-be-added soon)
