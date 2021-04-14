@@ -1,0 +1,13 @@
+
+# Path to the downloaded dsprites.npz file
+dsprites_path   : ...
+
+# Path to the downloaded 'cars' directory
+cars3D_path     : ...
+
+# Path to the downloaded 'smallNorb' directory
+smallNorb_path  : ...
+
+# Path to the downloaded '3dshapes.h5' file
+shapes3d_path : ...
+
