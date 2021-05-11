@@ -51,4 +51,4 @@ If you find this code useful in your research, please consider citing:
 }
 ```
 
-This work has been presented at the [RAI](https://sites.google.com/view/rai-workshop/), [WeaSuL](https://weasul.github.io/), and [RobustML] (https://sites.google.com/connect.hku.hk/robustml-2021/home) workshops, at [The Ninth International Conference on Learning Representations (ICLR 2021)](https://iclr.cc/).
+This work has been presented at the [RAI](https://sites.google.com/view/rai-workshop/), [WeaSuL](https://weasul.github.io/), and [RobustML](https://sites.google.com/connect.hku.hk/robustml-2021/home) workshops, at [The Ninth International Conference on Learning Representations (ICLR 2021)](https://iclr.cc/).
