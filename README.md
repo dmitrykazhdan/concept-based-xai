@@ -43,5 +43,12 @@ to get the datasets run script datasets/download_datasets.sh
 If you find this code useful in your research, please consider citing:
 
 ```
-Article TBC...
+@article{kazhdan2021disentanglement,
+  title={Is Disentanglement all you need? Comparing Concept-based \& Disentanglement Approaches},
+  author={Kazhdan, Dmitry and Dimanov, Botty and Terre, Helena Andres and Jamnik, Mateja and Li{\`o}, Pietro and Weller, Adrian},
+  journal={arXiv preprint arXiv:2104.06917},
+  year={2021}
+}
 ```
+
+This work has been presented at the [RAI](https://sites.google.com/view/rai-workshop/), [WeaSuL](https://weasul.github.io/), and [RobustML] (https://sites.google.com/connect.hku.hk/robustml-2021/home) workshops, at [The Ninth International Conference on Learning Representations (ICLR 2021)](https://iclr.cc/).
