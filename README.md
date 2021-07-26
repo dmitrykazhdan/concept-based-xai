@@ -24,18 +24,32 @@ _Datasets_:
 
 to get the datasets run script datasets/download_datasets.sh
 
-### Requirements:
+### Requirements
 
 - Python 3.7 - 3.8
-- See 'requirements.txt' for the rest
+- See 'requirements.txt' for the rest of required packages
 
+### Installation
+If installing from the source, please proceed by running the following command:
+```bash
+python setup.py install
+```
+This will install the `concepts-xai` package together with all its dependencies.
 
-### Directories:
+To test that the package has been successfully installed, you may run:
+```python
+import concepts_xai
+help("concepts_xai")
+```
+to display all the subpackages included from this installation.
 
-- Methods: defines the concept-based methods. Note: SSCC defines wrappers around these methods, that turn then into semi-supervised concept labelling methods.
-- Experiments: experimental setups (To-be-added soon)
-- Evaluation: different evaluation metrics to use for evaluating the semi-supervised concept labelling methods
-- Datasets: datasets to use, including task functions
+### Subpackages
+
+- `datasets`: datasets to use, including task functions.
+- `evaluation`: different evaluation metrics to use for evaluating the semi-supervised concept labelling methods.
+- `experiments`: experimental setups (To-be-added soon)
+- `methods`: defines the concept-based methods. Note: SSCC defines wrappers around these methods, that turn then into semi-supervised concept labelling methods.
+- `utils`: contains utility functions for model creation as well as data management.
 
 
 ### Citing
