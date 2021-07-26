@@ -1,2 +1,11 @@
-
+.DS_Store
 .idea/
+.python-version
+__pycache__
+build/
+cars/
+concepts_xai.egg-info/
+dist/
+dsprites/
+shapes3d/
+small_norb/

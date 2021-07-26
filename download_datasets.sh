@@ -1,9 +1,8 @@
 #!/bin/bash
+set -e
 
-
-'''
-Note: code partially-adapted from the 'https://github.com/google-research/disentanglement_lib' repo
-'''
+# Note: code partially-adapted from the
+#       'https://github.com/google-research/disentanglement_lib' repo
 
 
 echo "Downloading small_norb."
