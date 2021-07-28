@@ -1,6 +1,6 @@
 import numpy as np
 
-from datasets import dSprites, shapes3D, smallNorb, cars3D
+from . import dSprites, shapes3D, smallNorb, cars3D
 
 '''
 A primer on bases:

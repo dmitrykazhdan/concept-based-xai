@@ -1,8 +1,8 @@
 import os
 import shutil
 
-from utils.architectures import multi_task_cnn, small_cnn
-from utils.model_loader import get_model
+from .architectures import multi_task_cnn, small_cnn
+from .model_loader import get_model
 
 
 def tf_data_split(ds, test_size=0.15, n_samples=None):

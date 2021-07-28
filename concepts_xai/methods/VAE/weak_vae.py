@@ -1,5 +1,5 @@
 import tensorflow as tf
-from methods.VAE.baseVAE import BaseVAE, compute_gaussian_kl
+from concepts_xai.methods.VAE.baseVAE import BaseVAE, compute_gaussian_kl
 
 
 

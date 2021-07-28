@@ -1,6 +1,6 @@
 import numpy as np
 
-from datasets.latentFactorData import LatentFactorData, get_task_data, built_task_fn
+from .latentFactorData import LatentFactorData, get_task_data
 
 '''
 See https://github.com/deepmind/dsprites-dataset/blob/master/dsprites_reloading_example.ipynb

@@ -1,4 +1,4 @@
-from methods.VAE.baseVAE import BaseVAE
+from concepts_xai.methods.VAE.baseVAE import BaseVAE
 
 class BetaVAE(BaseVAE):
   """BetaVAE model."""

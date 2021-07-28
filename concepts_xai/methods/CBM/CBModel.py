@@ -1,10 +1,11 @@
 import tensorflow as tf
-from tensorflow.keras.layers import Input, Dense, Concatenate, Dropout
 import numpy as np
 import os
 
-from methods.CME.CtlModel import CtLModel
-from utils.utils import tf_data_split
+from concepts_xai.methods.CME.CtlModel import CtLModel
+from tensorflow.keras.layers import Input, Dense, Concatenate, Dropout
+from concepts_xai.utils.utils import tf_data_split
+
 
 class ConceptBottleneckModel(object):
 

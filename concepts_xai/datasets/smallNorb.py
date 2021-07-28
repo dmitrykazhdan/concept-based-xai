@@ -4,7 +4,7 @@ import PIL
 import numpy as np
 import tensorflow as tf
 
-from datasets.latentFactorData import LatentFactorData, get_task_data, built_task_fn
+from .latentFactorData import LatentFactorData, get_task_data
 
 SMALLNORB_concept_names  = ['category', 'instance', 'elevation', 'azimuth', 'lighting']
 SMALLNORB_concept_n_vals = [5, 10, 9, 18, 6]
