@@ -1,13 +1,18 @@
+"""
+Module containing implementations for Concept Bottleneck Models (CBMs) as
+described by Koh et al. in https://arxiv.org/abs/2007.04612
+"""
+
 import numpy as np
-import os
 import tensorflow as tf
 
 from collections import defaultdict
 from concepts_xai.methods.CME.CtlModel import CtLModel
-from concepts_xai.utils.utils import tf_data_split
-from tensorflow.keras.layers import Input, Dense, Concatenate, Dropout
 from tensorflow.python.keras.engine import data_adapter
 
+################################################################################
+## Exposed Functions
+################################################################################
 
 def produce_bottleneck(model, layer_idx):
     """
@@ -139,6 +144,10 @@ def produce_bottleneck(model, layer_idx):
 
     return encoder, decoder
 
+
+################################################################################
+## Exposed Classes
+################################################################################
 
 class JointConceptBottleneckModel(tf.keras.Model):
     """
