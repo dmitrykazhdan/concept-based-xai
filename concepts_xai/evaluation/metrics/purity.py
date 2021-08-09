@@ -120,20 +120,22 @@ def concept_purity_matrix(
             input_concept_classes=2,
             output_concept_classes=2,
         ):
-            estimator = tf.keras.models.Sequential()
-            estimator.add(tf.keras.layers.Dense(
-                32,
-                input_dim=(
-                    input_concept_classes if input_concept_classes > 2 else 1
+            estimator = tf.keras.models.Sequential([
+                tf.keras.layers.Dense(
+                    32,
+                    input_dim=(
+                        input_concept_classes if input_concept_classes > 2
+                        else 1
+                    ),
+                    activation='relu'
                 ),
-                activation='relu'
-            ))
-            estimator.add(tf.keras.layers.Dense(
-                output_concept_classes if output_concept_classes > 2 else 1,
-                # We will merge the activation into the loss for numerical
-                # stability
-                activation=None,
-            ))
+                tf.keras.layers.Dense(
+                    output_concept_classes if output_concept_classes > 2 else 1,
+                    # We will merge the activation into the loss for numerical
+                    # stability
+                    activation=None,
+                ),
+            ])
             estimator.compile(
                 # Use ADAM optimizer by default
                 optimizer='adam',
@@ -149,6 +151,7 @@ def concept_purity_matrix(
                 ),
             )
             return estimator
+
         predictor_train_kwags = predictor_train_kwags or {
             'epochs': 25,
             'batch_size': min(16, n_samples),
