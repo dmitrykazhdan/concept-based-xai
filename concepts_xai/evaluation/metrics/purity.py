@@ -5,6 +5,7 @@ Mahinpei et al.'s "Promises and Pitfalls of Black-Box Concept Learning Models"
 '''
 
 import numpy as np
+import scipy
 import sklearn
 import tensorflow as tf
 
@@ -192,9 +193,27 @@ def concept_purity_matrix(
             )
 
             # Compute the AUC of this classifier on the test data
+            preds = estimator.predict(concept_soft_test_x)
+            true_concepts = c_true[test_indexes, concept_j]
+            if concept_label_cardinality[concept_j] > 2:
+                # Then lets apply a softmax activation over all the probability
+                # classes
+                preds = scipy.special.softmax(preds, axis=-1)
+
+                # And make sure we only compute the AUC of labels that are
+                # actually used
+                used_labels = np.sort(np.unique(true_concepts))
+
+                # And select just the labels that are in fact being used
+                true_concepts = tf.keras.utils.to_categorical(
+                    true_concepts,
+                    num_classes=concept_label_cardinality[concept_j],
+                )[:, used_labels]
+                preds = preds[:, used_labels]
+
             auc = sklearn.metrics.roc_auc_score(
-                c_true[test_indexes, concept_j],
-                estimator.predict(concept_soft_test_x),
+                true_concepts,
+                preds,
                 multi_class='ovo',
             )
 
@@ -287,10 +306,9 @@ def oracle_purity_matrix(
         that the it-th concept may take. If not given, then we will assume that
         all concepts are binary (i.e., concept_label_cardinality[i] = 2 for all
         i).
-    :param Function[(int, int), sklearn-like Estimator] predictor_model_fn: A
-        function generator that takes as an argument two values, the number of
-        classes for the input concept and the number of classes for the output
-        target concept, respectively, and produces an sklearn-like Estimator
+    :param Function[(int), sklearn-like Estimator] predictor_model_fn: A
+        function generator that takes as an argument the number of classes for
+        the output target concept and produces an sklearn-like Estimator
         which one can train for predicting a concept given another concept's
         concept's value. If not given then we will use a 3-layer ReLU MLP
         as our predictor.
@@ -323,23 +341,21 @@ def oracle_purity_matrix(
         # Then by default we will use a simple MLP classifier with one hidden
         # ReLU layer with 32 units in it
         def predictor_model_fn(
-            input_concept_classes=2,
             output_concept_classes=2,
         ):
-            estimator = tf.keras.models.Sequential()
-            estimator.add(tf.keras.layers.Dense(
-                32,
-                input_dim=(
-                    input_concept_classes if input_concept_classes > 2 else 1
+            estimator = tf.keras.models.Sequential([
+                tf.keras.layers.Dense(
+                    32,
+                    input_dim=1,
+                    activation='relu'
                 ),
-                activation='relu'
-            ))
-            estimator.add(tf.keras.layers.Dense(
-                output_concept_classes if output_concept_classes > 2 else 1,
-                # We will merge the activation into the loss for numerical
-                # stability
-                activation=None,
-            ))
+                tf.keras.layers.Dense(
+                    output_concept_classes if output_concept_classes > 2 else 1,
+                    # We will merge the activation into the loss for numerical
+                    # stability
+                    activation=None,
+                ),
+            ])
             estimator.compile(
                 # Use ADAM optimizer by default
                 optimizer='adam',
@@ -381,23 +397,38 @@ def oracle_purity_matrix(
             # Let's populate the (i,j)-th entry of our matrix by first training
             # a classifier to predict the ground truth value of concept j using
             # the ground truth labels for concept i.
-
             # Construct a new estimator for performing this prediction
             estimator = predictor_model_fn(
-                concept_label_cardinality[concept_i],
                 concept_label_cardinality[concept_j]
             )
             # Train it
             estimator.fit(
                 concept_train_x,
-                concepts[train_indexes, concept_j:(concept_j + 1)],
+                np.squeeze(concepts[train_indexes, concept_j:(concept_j + 1)]),
                 **predictor_train_kwags,
             )
 
             # Compute the AUC of this classifier on the test data
+            preds = estimator.predict(concept_test_x)
+            true_concepts = concepts[test_indexes, concept_j]
+            if concept_label_cardinality[concept_j] > 2:
+                # Then lets apply a softmax activation over all the probability
+                # classes
+                preds = scipy.special.softmax(preds, axis=-1)
+
+                # And make sure we only compute the AUC of labels that are actually
+                # used
+                used_labels = np.sort(np.unique(true_concepts))
+                # And select just the labels that are in fact being used
+                true_concepts = tf.keras.utils.to_categorical(
+                    true_concepts,
+                    num_classes=concept_label_cardinality[concept_j],
+                )[:, used_labels]
+                preds = preds[:, used_labels]
+
             auc = sklearn.metrics.roc_auc_score(
-                concepts[test_indexes, concept_j],
-                estimator.predict(concept_test_x),
+                true_concepts,
+                preds,
                 multi_class='ovo',
             )
 
@@ -420,6 +451,7 @@ def norm_purity_score(
     predictor_train_kwags=None,
     test_size=0.2,
     norm_fn=lambda x: np.linalg.norm(x, ord='fro'),
+    oracle_matrix=None,
 ):
     """
     Returns the purity score of the given soft concept representations `c_soft`
@@ -462,6 +494,11 @@ def norm_purity_score(
         a 2D numpy matrix representing the absolute difference between the
         oracle purity score matrix and the predicted purity score matrix. If not
         given then we will use the 2D Frobenius norm.
+    :param np.ndarray oracle_matrix: If given, then this must be a 2D array with
+        shape (n_concepts, n_concepts) such that the (i, j)-th entry represents
+        the AUC of an oracle that predicts the value of concept j given the
+        ground truth of concept i. If not given, then this matrix will be
+        computed using the ground truth concept labels.
 
     :returns float: A non-negative float representing the degree to which
         individual concepts in the given bottleneck encode unnecessary
@@ -490,13 +527,14 @@ def norm_purity_score(
             concept_label_cardinality[i] = max(soft_labels.shape[-1], 2)
 
     # Compute the oracle's purity matrix
-    oracle_matrix = oracle_purity_matrix(
-        concepts=c_true,
-        concept_label_cardinality=concept_label_cardinality,
-        predictor_model_fn=predictor_model_fn,
-        predictor_train_kwags=predictor_train_kwags,
-        test_size=test_size,
-    )
+    if oracle_matrix is None:
+        oracle_matrix = oracle_purity_matrix(
+            concepts=c_true,
+            concept_label_cardinality=concept_label_cardinality,
+            predictor_model_fn=predictor_model_fn,
+            predictor_train_kwags=predictor_train_kwags,
+            test_size=test_size,
+        )
 
     # Finally, compute the norm of the absolute difference between the two
     # matrices
@@ -511,6 +549,7 @@ def encoder_norm_purity_score(
     predictor_train_kwags=None,
     test_size=0.2,
     norm_fn=lambda x: np.linalg.norm(x, ord='fro'),
+    oracle_matrix=None,
 ):
     """
     Returns the purity score of the concept representations generated by
@@ -554,6 +593,11 @@ def encoder_norm_purity_score(
         a 2D numpy matrix representing the absolute difference between the
         oracle purity score matrix and the predicted purity score matrix. If not
         given then we will use the 2D Frobenius norm.
+    :param np.ndarray oracle_matrix: If given, then this must be a 2D array with
+        shape (n_concepts, n_concepts) such that the (i, j)-th entry represents
+        the AUC of an oracle that predicts the value of concept j given the
+        ground truth of concept i. If not given, then this matrix will be
+        computed using the ground truth concept labels.
 
 
     :returns float: A non-negative float representing the degree to which
@@ -570,4 +614,5 @@ def encoder_norm_purity_score(
         predictor_train_kwags=predictor_train_kwags,
         test_size=test_size,
         norm_fn=norm_fn,
+        oracle_matrix=oracle_matrix,
     )
