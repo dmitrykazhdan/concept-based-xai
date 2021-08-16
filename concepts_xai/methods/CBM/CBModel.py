@@ -7,7 +7,6 @@ import numpy as np
 import tensorflow as tf
 
 from collections import defaultdict
-from concepts_xai.methods.CME.CtlModel import CtLModel
 from tensorflow.python.keras.engine import data_adapter
 
 ################################################################################
@@ -440,7 +439,6 @@ class JointConceptBottleneckModel(tf.keras.Model):
             len(predicted_concepts) if isinstance(predicted_concepts, list) else
             predicted_concepts.shape[-1]
         )
-        concept_accuracy = concept_accuracy / num_concepts
         grads = tape.gradient(total_loss, self.trainable_weights)
         self.optimizer.apply_gradients(zip(grads, self.trainable_weights))
         self.total_loss_tracker.update_state(total_loss, sample_weight)
