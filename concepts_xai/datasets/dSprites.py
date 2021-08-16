@@ -1,29 +1,85 @@
+'''
+See https://github.com/deepmind/dsprites-dataset/blob/master/dsprites_reloading_example.ipynb
+for a nice overview.
+
+6 latent factors: color, shape, scale, rotation and position (x and y)
+'latents_sizes': [1,  3,  6, 40, 32, 32]
+'''
+
 import numpy as np
 
 from .latentFactorData import LatentFactorData, get_task_data
 
-'''
-See https://github.com/deepmind/dsprites-dataset/blob/master/dsprites_reloading_example.ipynb
-For a nice overview 
+################################################################################
+## GLOBAL VARIABLES
+################################################################################
 
-6 latent factors:   color, shape, scale, rotation and position (x and y)
-'latents_sizes':    array([ 1,  3,  6, 40, 32, 32])
-'''
-DSPRITES_concept_names  = ['shape', 'scale', 'rotation', 'x_pos', 'y_pos']
-DSPRITES_concept_n_vals = [3, 6, 40, 32, 32]
+CONCEPT_NAMES = [
+    'shape',
+    'scale',
+    'rotation',
+    'x_pos',
+    'y_pos',
+]
+
+CONCEPT_N_VALUES = [
+    3,  # [square, ellipse, heart]
+    6,  # np.linspace(0.5, 1, 6)
+    40,  # 40 values in {0, 1, ..., 39} representing angles in [0, 2 * pi]
+    32,  # 32 values in {0, 2, 3, ..., 31} representing coordinates in [0, 1]
+    32,  # 32 values in {0, 2, 3, ..., 31} representing coordinates in [0, 1]
+]
+
+
+################################################################################
+## DATASET LOADER
+################################################################################
 
 class dSprites(LatentFactorData):
 
-    def __init__(self, dataset_path, task_name='shape_scale_small_skip', train_size=0.85, random_state=42):
+    def __init__(
+        self,
+        dataset_path,
+        task='shape_scale_small_skip',
+        train_size=0.85,
+        random_state=None,
+        task_fn=None,
+    ):
         '''
-        :param dataset_path:  path to the .npz dsprites file
-        :param task_name: the task to use with the dataset for creating labels
+        :param str dataset_path: path to the .npz dsprites file.
+        :param Or[
+            str,
+            Function[(ndarray, ndarray), (ndarray, ndarray, ndarray)
+        ] task: the task to use with the dataset for creating
+            labels. If this is a string, then it must be the name of a
+            pre-defined task in the DSPRITES_TASKS lookup table. Otherwise
+            we expect a function that takes two np.ndarrays (x_data, c_data),
+            corresponding to the dSprites samples and their respective concepts
+            respectively, and produces a tuple of three np.ndarrays
+            (x_data, c_data, y_data) corresponding to the task's
+            samples, ground truth concept values, and labels, respectively.
         '''
 
         # Note: we exclude the trivial 'color' concept
-        super().__init__(dataset_path=dataset_path, task_name=task_name, num_factors=5,
-                         sample_shape=[64, 64, 1], c_names=[DSPRITES_concept_names],
-                         task_fn=DSPRITES_TASKS[task_name])
+        if isinstance(task, str):
+            if task not in DSPRITES_TASKS:
+                raise ValueError(
+                    f'If the given task is a string, then it is expected to be '
+                    f'the name of a pre-defined task in '
+                    f'{list[DSPRITES_TASKS.keys()]}. However, we were given '
+                    f'"{task}" which is not a known task.'
+                )
+            task_fn = DSPRITES_TASKS[task]
+        else:
+            task_fn = task
+        super().__init__(
+            dataset_path=dataset_path,
+            task_name="dSprites",
+            num_factors=len(CONCEPT_NAMES),
+            sample_shape=[64, 64, 1],
+            c_names=CONCEPT_NAMES,
+            task_fn=task_fn,
+        )
         self._get_generators(train_size, random_state)
 
     def _load_x_c_data(self):
@@ -36,73 +92,71 @@ class dSprites(LatentFactorData):
         return x_data, c_data
 
 
-# ===========================================================================
-#                   Task DEFINITIONS
-# ===========================================================================
+################################################################################
+# TASK DEFINITIONS
+################################################################################
 
-def get_small_skip_ranges_filter_fn():
+def small_skip_ranges_filter_fn(concept):
     '''
     Filter out certain values only
     '''
-    ranges = [list(range(3)), list(range(6)), list(range(0, 40, 5)),
-              list(range(0, 32, 2)), list(range(0, 32, 2))]
-
-    def filter_fn(concept):
-        return all([(concept[i] in ranges[i]) for i in range(len(ranges))])
-
-    return filter_fn
-
-
-def shape_label_fn(c_data):
-    return c_data[0]
-
-
-def shape_scale_label_fn(n_shapes, n_scales):
-    label_map = {}
-    cnt = 0
-
-    for sh in range(n_shapes):
-        for sc in range(n_scales):
-            key = sh * n_scales + sc
-            label_map[key] = cnt
-            cnt += 1
-
-    def label_fn(c_data):
-        key = c_data[0] * n_scales + c_data[1]
-        return label_map[key]
-
-    return label_fn
+    ranges = [
+        list(range(3)),
+        list(range(6)),
+        list(range(0, 40, 5)),
+        list(range(0, 32, 2)),
+        list(range(0, 32, 2)),
+    ]
+    return all([
+        (concept[i] in ranges[i]) for i in range(len(ranges))
+    ])
 
 
 def get_shape_full(x_data, c_data):
-    label_fn = shape_label_fn
-    return get_task_data(x_data, c_data, label_fn, filter_fn=None)
+    return get_task_data(
+        x_data=x_data,
+        c_data=c_data,
+        label_fn=lambda c_data: c_data[0],
+    )
 
 
 def get_shape_small_skip(x_data, c_data):
-    filter_fn = get_small_skip_ranges_filter_fn()
-    label_fn = shape_label_fn
-    return get_task_data(x_data, c_data, label_fn, filter_fn)
+    return get_task_data(
+        x_data=x_data,
+        c_data=c_data,
+        label_fn=lambda c_data: c_data[0],
+        filter_fn=small_skip_ranges_filter_fn,
+    )
 
 
 def get_shape_scale_full(x_data, c_data):
-    label_fn = shape_scale_label_fn(3, 6)
-    return get_task_data(x_data, c_data, label_fn, filter_fn=None)
+    return get_task_data(
+        x_data=x_data,
+        c_data=c_data,
+        label_fn=lambda c_data: (
+            c_data[0] * CONCEPT_N_VALUES[1] + c_data[1]
+        ),
+    )
 
 
 def get_shape_scale_small_skip(x_data, c_data):
-    filter_fn = get_small_skip_ranges_filter_fn()
-    label_fn = shape_scale_label_fn(3, 6)
-    return get_task_data(x_data, c_data, label_fn, filter_fn)
+    return get_task_data(
+        x_data=x_data,
+        c_data=c_data,
+        label_fn=lambda c_data: (
+            c_data[0] * CONCEPT_N_VALUES[1] + c_data[1]
+        ),
+        filter_fn=small_skip_ranges_filter_fn,
+    )
 
 
+################################################################################
+# TASK FUNCTION LOOKUP TABLE
+################################################################################
 
-# ===========================================================================
-#                   Define task function lookups
-# ===========================================================================
-
-DSPRITES_TASKS = {"shape_full":             get_shape_full,
-                  "shape_small_skip":       get_shape_small_skip,
-                  "shape_scale_full":       get_shape_scale_full,
-                  "shape_scale_small_skip": get_shape_scale_small_skip,
-                  }
+DSPRITES_TASKS = {
+    "shape_full": get_shape_full,
+    "shape_scale_full": get_shape_scale_full,
+    "shape_scale_small_skip": get_shape_scale_small_skip,
+    "shape_small_skip": get_shape_small_skip,
+}
