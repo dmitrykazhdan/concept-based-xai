@@ -9,6 +9,7 @@ import tensorflow as tf
 from collections import defaultdict
 from tensorflow.python.keras.engine import data_adapter
 
+
 ################################################################################
 ## Exposed Functions
 ################################################################################
@@ -187,7 +188,7 @@ class JointConceptBottleneckModel(tf.keras.Model):
             i.e., we assume one concept per vector).
         :param tf.keras.Model decoder: A valid keras model mapping a concept
             vector to a set of task-specific labels. We assume that if the
-            encoder output as list of concepts, then the input to this model
+            encoder outputs a list of concepts then the input to this model
             is the concatenation of all the output vectors of the encoder in
             the same order as produced by the encoder.
         :param tf.keras.losses.Loss task_loss: The loss to be used for the
@@ -238,7 +239,6 @@ class JointConceptBottleneckModel(tf.keras.Model):
             self.concept_accuracy_tracker,
         ] + self.extra_metrics
 
-    @tf.function
     def predict_from_concepts(self, concepts):
         """
         Given a set of concepts (e.g., coming from an intervention), this
@@ -254,14 +254,12 @@ class JointConceptBottleneckModel(tf.keras.Model):
         """
         if isinstance(concepts, list):
             if len(concepts) > 1:
-                compacted_vector = tf.keras.layers.Concatenate(axis=-1)(
+                concepts = tf.keras.layers.Concatenate(axis=-1)(
                     concepts
                 )
             else:
-                compacted_vector = concepts[0]
-        else:
-            compacted_vector = concepts
-        return self.decoder(compacted_vector)
+                concepts = concepts[0]
+        return self.decoder(concepts)
 
     def call(self, inputs):
         # We will use the log of the variance rather than the actual variance
@@ -269,7 +267,6 @@ class JointConceptBottleneckModel(tf.keras.Model):
         outputs, concepts, _ = self._call_fn(inputs)
         return outputs, concepts
 
-    @tf.function
     def _call_fn(self, inputs, **kwargs):
         # This method is separate from the call method above as it allows one
         # to overwrite this class and include an extra set of losses (returned
@@ -278,7 +275,6 @@ class JointConceptBottleneckModel(tf.keras.Model):
         concepts = self.encoder(inputs, **kwargs)
         return self.predict_from_concepts(concepts), concepts, []
 
-    @tf.function
     def _compute_losses(
         self,
         predicted_labels,
@@ -290,7 +286,6 @@ class JointConceptBottleneckModel(tf.keras.Model):
         Helper function for computing all the losses we require for training
         our joint CBM.
         """
-
         # Updates stateful loss metrics.
         task_loss = self.task_loss(true_labels, predicted_labels)
         concept_loss = 0.0
@@ -344,7 +339,6 @@ class JointConceptBottleneckModel(tf.keras.Model):
                 true_concepts,
                 predicted_concepts,
             )
-            normalize_acc = False
             concept_accuracy = self._bin_acc_metric(
                 true_concepts,
                 predicted_concepts,
@@ -454,3 +448,86 @@ class JointConceptBottleneckModel(tf.keras.Model):
             metric.name: metric.result()
             for metric in self.metrics
         }
+
+
+class BypassJointCBM(JointConceptBottleneckModel):
+    def __init__(
+        self,
+        encoder,
+        decoder,
+        task_loss,
+        alpha=0.01,
+        metrics=None,
+        **kwargs,
+    ):
+        """
+        Extension of CBM model above that allows extra capacity in the
+        bottleneck for activations that have no concept supervision.
+        Expects the encoder to output a tuple (concepts, latent_code) where
+        concepts has the same required properties of the output of the encoder
+        in JointConceptBottleneckModel and latent_code is a np.ndarray vector
+        representing activations in the bottleneck that have no supervision.
+
+        The concatentation of the elements in concepts and latent_code will be
+        fed into the provided decoder model.
+
+        When using this model for prediction, it will return a tuple
+        (labels, concepts) indicating the predicted label probabilities as
+        well as the predicted concepts probabilities.
+
+        :param tf.keras.Model encoder: A valid keras model that maps input
+            features to a set of concepts and a vector of unsupervised latent
+            activations. If the concept output of this model is a single vector,
+            then every entry of that vector is assumed to be one binary concept.
+            Otherwise, if the output of the encoder's concepts is a list of
+            vectors, then we assume that each vector represents a probability
+            distribution over different classes for each concept (i.e., we
+            assume one concept per vector).
+        :param tf.keras.Model decoder: A valid keras model mapping a concept
+            vector concatenated to the unsupervised latent dimensions to a set
+            of task-specific labels. We assume that if the encoder outputs a
+            list of concepts, then the input to this model is the concatenation
+            of all the output vectors of the encoder (including the unsupervised
+            latent dimensions) in the same order as produced by the encoder.
+        :param tf.keras.losses.Loss task_loss: The loss to be used for the
+            specific task labels.
+        :param float alpha: A parameter indicating how much weight should one
+            assign the loss coming from training the bottleneck. If 0, then
+            there is no learning enforced in the bottleneck.
+        :param List[tf.keras.metrics.Metric]  metrics: A list of possible
+            metrics of interest which one may want to monitor during training.
+        :param Dict[Any, Any] kwargs: Keras Layer specific kwargs to be passed
+            to the parent constructor.
+
+        """
+        super(BypassJointCBM, self).__init__(
+            encoder=encoder,
+            decoder=decoder,
+            task_loss=task_loss,
+            alpha=alpha,
+            metrics=metrics,
+            **kwargs
+        )
+
+    def call(self, inputs):
+        # We will use the log of the variance rather than the actual variance
+        # for stability purposes
+        concepts, latent_code = self.encoder(inputs)
+        if not isinstance(concepts, list):
+            decode_inputs = [concepts] + [latent_code]
+        else:
+            decode_inputs = concepts + [latent_code]
+        return (
+            self.predict_from_concepts(decode_inputs),
+            concepts,
+            latent_code,
+        )
+
+    def _call_fn(self, inputs, **kwargs):
+        # Compute our concepts and latent code
+        concepts, latent_code = self.encoder(inputs, **kwargs)
+        if not isinstance(concepts, list):
+            decode_inputs = [concepts] + [latent_code]
+        else:
+            decode_inputs = concepts + [latent_code]
+        return self.predict_from_concepts(decode_inputs), concepts, []
