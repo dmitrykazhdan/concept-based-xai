@@ -101,7 +101,7 @@ def get_task_data(x_data, c_data, label_fn, filter_fn=None):
 
     if filter_fn is not None:
         ids = np.array([filter_fn(c) for c in c_data])
-        ids = np.where(ids == True)[0]
+        ids = np.where(ids)[0]
         c_data = c_data[ids]
         x_data = x_data[ids]
 

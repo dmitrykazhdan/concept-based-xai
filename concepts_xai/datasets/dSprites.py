@@ -43,7 +43,6 @@ class dSprites(LatentFactorData):
         task='shape_scale_small_skip',
         train_size=0.85,
         random_state=None,
-        task_fn=None,
     ):
         '''
         :param str dataset_path: path to the .npz dsprites file.
@@ -66,7 +65,7 @@ class dSprites(LatentFactorData):
                 raise ValueError(
                     f'If the given task is a string, then it is expected to be '
                     f'the name of a pre-defined task in '
-                    f'{list[DSPRITES_TASKS.keys()]}. However, we were given '
+                    f'{list(DSPRITES_TASKS.keys())}. However, we were given '
                     f'"{task}" which is not a known task.'
                 )
             task_fn = DSPRITES_TASKS[task]
@@ -95,6 +94,14 @@ class dSprites(LatentFactorData):
 ################################################################################
 # TASK DEFINITIONS
 ################################################################################
+
+def cardinality_encoding(card_group_1, card_group_2):
+    result_to_encoding = {}
+    for i in card_group_1:
+        for j in card_group_2:
+            result_to_encoding[(i, j)] = len(result_to_encoding)
+    return result_to_encoding
+
 
 def small_skip_ranges_filter_fn(concept):
     '''
@@ -140,12 +147,14 @@ def get_shape_scale_full(x_data, c_data):
 
 
 def get_shape_scale_small_skip(x_data, c_data):
+    label_remap = cardinality_encoding(
+        list(range(3)),
+        list(range(6)),
+    )
     return get_task_data(
         x_data=x_data,
         c_data=c_data,
-        label_fn=lambda c_data: (
-            c_data[0] * CONCEPT_N_VALUES[1] + c_data[1]
-        ),
+        label_fn=lambda c_data: label_remap[(c_data[0], c_data[1])],
         filter_fn=small_skip_ranges_filter_fn,
     )
 
