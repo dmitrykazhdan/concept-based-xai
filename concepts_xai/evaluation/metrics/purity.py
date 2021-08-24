@@ -14,6 +14,101 @@ from tensorflow.python.keras.engine import data_adapter
 
 
 ################################################################################
+## Concept Whitening Concept Purity Metrics
+################################################################################
+
+def concept_similarity_matrix(
+    concept_representations,
+    compute_ratios=False,
+    eps=1e-5,
+):
+    """
+    Computes a matrix such that its (i,j)-th entry represents the average
+    normalized dot product between samples representative of concept i and
+    samples representative of concept j.
+    This metric is defined by Chen et al. in "Concept Whitening for
+    Interpretable Image Recognition" (https://arxiv.org/abs/2002.01650)
+
+    :param List[np.ndarray] concept_representations: A list of tensors
+        containing representative samples for each concept. The i-th element
+        of this list must be a tensor whose first dimension is the batch
+        dimension.
+    :param bool compute_ratios: If True, then each element in the output matrix
+        is  the similarity ratio coefficient as defined by Chen et al.. This is
+        the ratio between the inter-similarity of (i, j) and the square root
+        of the product between the intra-similarity of concepts i and j.
+    :param float eps: A small value for numerical stability when performing
+        divisions.
+    """
+    num_concepts = len(concept_representations)
+    result = np.zeros((num_concepts, num_concepts), dtype=np.float32)
+    for i in range(num_concepts):
+        samples_i = np.reshape(
+            concept_representations[i],
+            [concept_representations[i].shape[0], -1],
+        )
+        samples_i_dots = np.einsum(
+            'nd,md->nm',
+            samples_i,
+            samples_i,
+        )
+
+        norm_col_mat = np.zeros(samples_i_dots.shape, dtype=np.float32)
+        norm_row_mat = np.zeros(samples_i_dots.shape, dtype=np.float32)
+        for s in range(samples_i_dots.shape[0]):
+            norm_row_mat[s, :] = np.sqrt(samples_i_dots[s, s])
+            norm_col_mat[:, s] = np.sqrt(samples_i_dots[s, s])
+
+
+        # And set the score of the (i, i)-th entry
+        result[i, i] = np.mean(
+            samples_i_dots / (norm_col_mat * norm_row_mat + eps)
+        )
+
+        # Fill up the (i, i) entry now that we have the norms themselves
+        for j in range(i + 1, num_concepts):
+            samples_j = np.reshape(
+                concept_representations[j],
+                [concept_representations[j].shape[0], -1],
+            )
+            samples_j_norms = np.sqrt(
+                np.diag(np.diag(np.einsum(
+                    'nd,md->nm',
+                    samples_j,
+                    samples_j,
+                )))
+            )
+            cross_dots = np.einsum(
+                'nd,md->nm',
+                samples_i,
+                samples_j,
+            )
+            norm_col_mat = np.zeros(cross_dots.shape, dtype=np.float32)
+            norm_row_mat = np.zeros(cross_dots.shape, dtype=np.float32)
+            for s in range(cross_dots.shape[0]):
+                norm_row_mat[s, :] = np.sqrt(samples_i_dots[s, s])
+            for s in range(cross_dots.shape[1]):
+                norm_col_mat[:, s] = samples_j_norms[s, s]
+
+            similarity = np.mean(
+                cross_dots / (norm_col_mat * norm_row_mat + eps)
+            )
+
+            # And set it up accordingly
+            result[i, j] = similarity
+            result[j, i] = similarity
+
+    if compute_ratios:
+        for i in range(num_concepts):
+            for j in range(i + 1, num_concepts):
+                result[i, j] = np.abs(result[i, j])/np.sqrt(
+                    result[i, i] * result[j, j] + eps
+                )
+                result[j, i] = result[i, j]
+            result[i, i] = 1
+    return result
+
+################################################################################
 ## Purity Matrix Computation
 ################################################################################
 
