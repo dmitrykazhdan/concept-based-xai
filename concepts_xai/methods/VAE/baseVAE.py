@@ -35,6 +35,17 @@ class BaseVAE(tf.keras.Model):
             name="sampled_latent_variable"
         )
 
+    def generate_random_sample(self, z=None, num_samples=1, seed=None):
+        (_, latent_size), (_, _) = self.encoder.output_shape
+        if z is None:
+            z = tf.random.normal(
+                shape=[num_samples, latent_size],
+                mean=0.0,
+                stddev=1.0,
+                seed=seed,
+            )
+        return self.decoder(z)
+
     def _compute_losses(self, x, is_training=False):
 
         z_mean, z_logvar = self.encoder(x, training=is_training)
@@ -53,15 +64,14 @@ class BaseVAE(tf.keras.Model):
         for (loss_name, loss) in losses:
             self.metrics_dict[loss_name].update_state(loss)
 
-    def train_step(self, data):
+    def train_step(self, inputs):
         """Executes one training step and returns the loss.
         This function computes the loss and gradients, and uses the latter to
         update the model's parameters.
         """
-        x = data[0]
         with tf.GradientTape() as tape:
             loss, reconstruction_loss, elbo = self._compute_losses(
-                x,
+                inputs,
                 is_training=True,
             )
 
@@ -74,17 +84,16 @@ class BaseVAE(tf.keras.Model):
         ])
 
         return {
-            name : self.metrics_dict[name].result()
+            name: self.metrics_dict[name].result()
             for name in self.metric_names
         }
 
-    def test_step(self, data):
+    def test_step(self, inputs):
         """Executes one test step and returns the loss.
         This function computes the loss, without updating the model parameters.
         """
-        x = data[0]
-        loss, reconstruction_loss, elbo = self.compute_losses(
-            x,
+        loss, reconstruction_loss, elbo = self._compute_losses(
+            inputs,
             is_training=False,
         )
         self.update_metrics([
@@ -94,7 +103,7 @@ class BaseVAE(tf.keras.Model):
         ])
 
         return {
-            name : self.metrics_dict[name].result()
+            name: self.metrics_dict[name].result()
             for name in self.metric_names
         }
 

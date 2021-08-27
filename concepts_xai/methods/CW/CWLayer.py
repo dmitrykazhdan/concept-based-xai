@@ -1,5 +1,5 @@
 '''
-Re-implementation of the Concept Whitening approach.
+Re-implementation of the Concept Whitening module proposed by Chen et al..
 
 1)  See the IterNormRotation class in for the original paper implementation:
     https://github.com/zhiCHEN96/ConceptWhitening/blob/final_version/MODELS/iterative_normalization.py
