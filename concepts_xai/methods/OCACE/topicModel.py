@@ -37,12 +37,6 @@ class TopicModel(tf.keras.Model):
     ):
         super(TopicModel, self).__init__(**kwargs)
 
-        initializer = tf.keras.initializers.RandomUniform(
-            minval=-0.5,
-            maxval=0.5,
-            seed=seed,
-        )
-
         # Initialise our topic vector tensor which we will learn
         # as part of our training
         self.topic_vector = self.add_weight(
@@ -123,10 +117,11 @@ class TopicModel(tf.keras.Model):
         topic_prob_norm = K.dot(x_norm, topic_vector_norm)
 
         # Threshold them if they are below the given threshold value
-        topic_prob = topic_prob * tf.cast(
-            (topic_prob_norm > self.threshold),
-            tf.float32,
-        )
+        if self.threshold is not None:
+            topic_prob = topic_prob * tf.cast(
+                (topic_prob_norm > self.threshold),
+                tf.float32,
+            )
         topic_prob_sum = tf.reduce_sum(
             topic_prob,
             axis=self._channel_axis,
