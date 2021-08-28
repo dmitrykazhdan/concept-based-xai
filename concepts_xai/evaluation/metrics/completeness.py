@@ -79,10 +79,9 @@ def dot_prod_concept_score(
     # First check that all the dimensions make sense
     assert features.shape[channels_axis] == concept_vectors.shape[-1], (
         f'Expected input to have {concept_vectors.shape[-1]} elements in its '
-        f'channels axis (defined as axis {channel_axis}). '
-        f'Instead, we found the input to have shape {x.shape}.'
+        f'channels axis (defined as axis {channels_axis}). '
+        f'Instead, we found the input to have shape {features.shape}.'
     )
-
     # First normalize all concepts across their channels dimension
     concept_vectors_norm = np.linalg.norm(
         concept_vectors,
@@ -105,14 +104,16 @@ def dot_prod_concept_score(
         axis=-1,
         keepdims=True,
     )
-    x_norm = features / (features + epsilon)
+
+    x_norm = features / (x_norm + epsilon)
 
     # Compute the concept probabilities accordingly
     concept_prob = np.dot(features, concept_vectors.transpose())
     concept_prob_norm = np.dot(x_norm, concept_vectors.transpose())
 
     # Threshold scores accordingly using the normalized scores
-    v = concept_prob * (concept_prob_norm > beta)
+    if beta is not None:
+        concept_prob = concept_prob * (concept_prob_norm > beta)
 
     # And end by normalizing them
     norm = np.sum(concept_prob, axis=-1, keepdims=True)
