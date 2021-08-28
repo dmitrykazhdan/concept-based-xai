@@ -32,7 +32,7 @@ def concept_similarity_matrix(
     :param List[np.ndarray] concept_representations: A list of tensors
         containing representative samples for each concept. The i-th element
         of this list must be a tensor whose first dimension is the batch
-        dimension.
+        dimension and last dimension is the channel dimension.
     :param bool compute_ratios: If True, then each element in the output matrix
         is  the similarity ratio coefficient as defined by Chen et al.. This is
         the ratio between the inter-similarity of (i, j) and the square root
@@ -42,82 +42,118 @@ def concept_similarity_matrix(
     """
     num_concepts = len(concept_representations)
     result = np.zeros((num_concepts, num_concepts), dtype=np.float32)
+    m_representations_normed = {}
+    intra_dot_product_means_normed = {}
     for i in range(num_concepts):
-        samples_i = np.reshape(
-            concept_representations[i],
-            [concept_representations[i].shape[0], -1],
+        m_representations_normed[i] = (
+            concept_representations[i] /
+            np.linalg.norm(concept_representations[i], axis=-1, keepdims=True)
+
         )
-        samples_i_dots = np.einsum(
-            'nd,md->nm',
-            samples_i,
-            samples_i,
-        )
+        intra_dot_product_means_normed[i] = np.matmul(
+            m_representations_normed[i],
+            m_representations_normed[i].transpose()
+        ).mean()
 
-        norm_col_mat = np.zeros(samples_i_dots.shape, dtype=np.float32)
-        norm_row_mat = np.zeros(samples_i_dots.shape, dtype=np.float32)
-        for s in range(samples_i_dots.shape[0]):
-            norm_row_mat[s, :] = np.sqrt(samples_i_dots[s, s])
-            norm_col_mat[:, s] = np.sqrt(samples_i_dots[s, s])
+        if compute_ratios:
+            result[i, i] = 1.0
+        else:
+            result = np.matmul(
+                concept_representations[i],
+                concept_representations[i].transpose()
+            ).mean()
 
-
-        # And set the score of the (i, i)-th entry
-        result[i, i] = np.mean(
-            samples_i_dots / (norm_col_mat * norm_row_mat + eps)
-        )
-
-        # Fill up the (i, i) entry now that we have the norms themselves
+    for i in range(num_concepts):
         for j in range(i + 1, num_concepts):
-            samples_j = np.reshape(
-                concept_representations[j],
-                [concept_representations[j].shape[0], -1],
-            )
-            samples_j_norms = np.sqrt(
-                np.diag(np.diag(np.einsum(
-                    'nd,md->nm',
-                    samples_j,
-                    samples_j,
-                )))
-            )
-            cross_dots = np.einsum(
-                'nd,md->nm',
-                samples_i,
-                samples_j,
-            )
-            norm_col_mat = np.zeros(cross_dots.shape, dtype=np.float32)
-            norm_row_mat = np.zeros(cross_dots.shape, dtype=np.float32)
-            for s in range(cross_dots.shape[0]):
-                norm_row_mat[s, :] = np.sqrt(samples_i_dots[s, s])
-            for s in range(cross_dots.shape[1]):
-                norm_col_mat[:, s] = samples_j_norms[s, s]
+            inter_dot = np.matmul(
+                m_representations_normed[i],
+                m_representations_normed[j].transpose()
+            ).mean()
+            if compute_ratios:
+                result[i, j] = np.abs(inter_dot) / np.sqrt(np.abs(
+                    intra_dot_product_means_normed[i] *
+                    intra_dot_product_means_normed[j]
+                ))
+            else:
+                result[i, j] = np.matmul(
+                    concept_representations[i],
+                    concept_representations[j].transpose(),
+                ).mean()
+            result[j, i] = result[i, j]
 
-            similarity = np.mean(
-                cross_dots / (norm_col_mat * norm_row_mat + eps)
-            )
-
-            # And set it up accordingly
-            result[i, j] = similarity
-            result[j, i] = similarity
-
-    if compute_ratios:
-        for i in range(num_concepts):
-            for j in range(i + 1, num_concepts):
-                result[i, j] = np.abs(result[i, j])/np.sqrt(
-                    result[i, i] * result[j, j] + eps
-                )
-                result[j, i] = result[i, j]
-            result[i, i] = 1
     return result
+
+
+################################################################################
+## Alignment Functions
+################################################################################
+
+
+def find_max_alignment(matrix):
+    """
+    Finds the maximum (greedy) alignment between columns in this matrix and
+    its rows. It returns a list `l` with as many elements as columns in the input
+    matrix such that l[i] is the column best aligned with row `i` given the
+    scores in `matrix`.
+    For this, we proceed in a greedy fashion where we bind columns with rows
+    in descending order of their values in the matrix.
+
+    :param np.ndarray matrix: A matrix with at least as many rows as columns.
+
+    :return List[int]: the column-to-row maximum greedy alignment.
+    """
+    sorted_inds = np.dstack(
+        np.unravel_index(np.argsort(-matrix.ravel()), matrix.shape)
+    )[0]
+    result_alignment = [None for _ in range(matrix.shape[1])]
+    used_rows = set()
+    used_cols = set()
+    for (row, col) in sorted_inds:
+        if (col in used_cols) or (row in used_rows):
+            # Then this is not something we can use any more
+            continue
+        # Else, let's add this mapping into our alignment!
+        result_alignment[col] = row
+        used_rows.add(row)
+        used_cols.add(col)
+        if len(used_rows) == matrix.shape[1]:
+            # Then we are done in here!
+            break
+    return result_alignment
+
+
+def max_alignment_matrix(matrix):
+    """
+    Helper function that computes the (greedy) max alignment of the input
+    matrix and it rearranges so that each column is aligned to its corresponding
+    row. In this case, this means that the diagonal matrix of the resulting
+    matrix will correspond to the entries in `matrix` that were aligned.
+
+    :param np.ndarray matrix: A matrix with at least as many rows as columns.
+
+    :return np.ndarray: A square matrix representing the column-aligned matrix
+        of the given input tensor.
+    """
+    inds = find_max_alignment(matrix)
+    return np.stack(
+        [matrix[inds[i], :] for i in range(matrix.shape[1])],
+        axis=0
+    )
+
 
 ################################################################################
 ## Purity Matrix Computation
 ################################################################################
 
+
 def concept_purity_matrix(
     c_soft,
     c_true,
+    concept_label_cardinality=None,
     predictor_model_fn=None,
     predictor_train_kwags=None,
     test_size=0.2,
+    ignore_diags=False,
 ):
     """
     Computes a concept purity matrix where the (i,j)-th entry represents the
@@ -145,6 +181,11 @@ def concept_purity_matrix(
     :param np.ndarray c_true: Ground truth concept values in one-to-one
         correspondence with concepts in c_soft. Shape must be
         (n_samples, n_concepts).
+    :param List[int] concept_label_cardinality: If given, then this is a list
+        of integers such that its i-th index contains the number of classes
+        that the it-th concept may take. If not given, then we will assume that
+        all concepts have the same cardinality as the number of activations in
+        their soft representations.
     :param Function[(int, int), sklearn-like Estimator] predictor_model_fn: A
         function generator that takes as an argument two values, the number of
         classes for the input concept and the number of classes for the output
@@ -175,7 +216,15 @@ def concept_purity_matrix(
 
     # Construct a list concept_label_cardinality that maps a concept to the
     # cardinality of its label set as specified by the testing data
-    (n_samples, n_concepts) = c_true.shape
+    (n_samples, n_true_concepts) = c_true.shape
+    n_soft_concepts = c_soft.shape[-1]
+
+    assert n_soft_concepts >= n_true_concepts, (
+        f'Expected at least as many soft concept representations as true '
+        f'concepts labels. However we received {n_soft_concepts} soft concept '
+        f'representations per sample while we have {n_true_concepts} true '
+        f'concept labels per sample.'
+    )
 
     if isinstance(c_soft, np.ndarray):
         # Then, all concepts must be binary
@@ -184,13 +233,14 @@ def concept_purity_matrix(
             f'concepts. Instead got {c_soft.shape[0]} soft-concepts '
             f'and {c_true.shape[0]} ground truth test concepts.'
         )
-        concept_label_cardinality = [2 for _ in range(n_concepts)]
+        if concept_label_cardinality is None:
+            concept_label_cardinality = [2 for _ in range(n_soft_concepts)]
         # And for simplicity and consistency, we will rewrite c_soft as a
         # list such that i-th entry contains an array with shape (n_samples, 1)
         # indicating the probability that concept i is activated for all
         # test samples.
-        new_c_soft = [None for _ in range(n_concepts)]
-        for i in range(n_concepts):
+        new_c_soft = [None for _ in range(n_soft_concepts)]
+        for i in range(n_soft_concepts):
             new_c_soft[i] = np.expand_dims(c_soft[..., i], axis=-1)
         c_soft = new_c_soft
     else:
@@ -200,15 +250,16 @@ def concept_purity_matrix(
             f'c_soft must be passed as either a list or a np.ndarray. '
             f'Instead we got an instance of "{type(c_soft).__name__}".'
         )
-        concept_label_cardinality = [None for _ in range(n_concepts)]
-        for i, soft_labels in enumerate(c_soft):
-            concept_label_cardinality[i] = max(soft_labels.shape[-1], 2)
-            assert soft_labels.shape[0] == c_true.shape[0], (
-                f"For concept {i}'s soft labels, we expected "
-                f"{c_true.shape[0]} samples as we were given that many "
-                f"in the ground-truth array. Instead we found "
-                f"{soft_labels.shape[0]} samples."
-            )
+        if concept_label_cardinality is None:
+            concept_label_cardinality = [None for _ in range(n_soft_concepts)]
+            for i, soft_labels in enumerate(c_soft):
+                concept_label_cardinality[i] = max(soft_labels.shape[-1], 2)
+                assert soft_labels.shape[0] == c_true.shape[0], (
+                    f"For concept {i}'s soft labels, we expected "
+                    f"{c_true.shape[0]} samples as we were given that many "
+                    f"in the ground-truth array. Instead we found "
+                    f"{soft_labels.shape[0]} samples."
+                )
 
     # Handle the default parameters for both the generating function and
     # the concept label cardinality
@@ -258,7 +309,7 @@ def concept_purity_matrix(
         }
 
     # Time to start formulating our resulting matrix
-    result = np.zeros((n_concepts, n_concepts), dtype=np.float32)
+    result = np.zeros((n_soft_concepts, n_true_concepts), dtype=np.float32)
 
     # Split our test data into two subsets as we will need to train
     # a classifier and then use that trained classifier in the remainder of the
@@ -268,32 +319,37 @@ def concept_purity_matrix(
         test_size=test_size,
     )
 
-    for concept_i in range(n_concepts):
+    for src_soft_concept in range(n_soft_concepts):
         # Construct a test and training set of features for this concept
-        concept_soft_train_x = c_soft[concept_i][train_indexes, ...]
-        concept_soft_test_x = c_soft[concept_i][test_indexes, ...]
+        concept_soft_train_x = c_soft[src_soft_concept][train_indexes, ...]
+        concept_soft_test_x = c_soft[src_soft_concept][test_indexes, ...]
 
-        for concept_j in range(n_concepts):
+        for tgt_true_concept in range(n_true_concepts):
             # Let's populate the (i,j)-th entry of our matrix by first training
             # a classifier to predict the ground truth value of concept j using
             # the soft-concept labels for concept i.
+            if ignore_diags and (src_soft_concept == tgt_true_concept):
+                # Then for simplicity sake we will simply set this to one
+                # as it is expected to be perfectly predictable
+                result[src_soft_concept, tgt_true_concept] = 1
+                continue
 
             # Construct a new estimator for performing this prediction
             estimator = predictor_model_fn(
-                concept_label_cardinality[concept_i],
-                concept_label_cardinality[concept_j]
+                concept_label_cardinality[src_soft_concept],
+                concept_label_cardinality[tgt_true_concept]
             )
             # Train it
             estimator.fit(
                 concept_soft_train_x,
-                c_true[train_indexes, concept_j:(concept_j + 1)],
+                c_true[train_indexes, tgt_true_concept:(tgt_true_concept + 1)],
                 **predictor_train_kwags,
             )
 
             # Compute the AUC of this classifier on the test data
             preds = estimator.predict(concept_soft_test_x)
-            true_concepts = c_true[test_indexes, concept_j]
-            if concept_label_cardinality[concept_j] > 2:
+            true_concepts = c_true[test_indexes, tgt_true_concept]
+            if concept_label_cardinality[tgt_true_concept] > 2:
                 # Then lets apply a softmax activation over all the probability
                 # classes
                 preds = scipy.special.softmax(preds, axis=-1)
@@ -305,7 +361,7 @@ def concept_purity_matrix(
                 # And select just the labels that are in fact being used
                 true_concepts = tf.keras.utils.to_categorical(
                     true_concepts,
-                    num_classes=concept_label_cardinality[concept_j],
+                    num_classes=concept_label_cardinality[tgt_true_concept],
                 )[:, used_labels]
                 preds = preds[:, used_labels]
 
@@ -317,7 +373,7 @@ def concept_purity_matrix(
 
             # Finally, time to populate the actual entry of our resulting
             # matrix
-            result[concept_i, concept_j] = auc
+            result[src_soft_concept, tgt_true_concept] = auc
 
     # And that's all folks
     return result
@@ -423,126 +479,16 @@ def oracle_purity_matrix(
         where the (i,j)-th entry specifies the testing AUC of using the i-th
         concept label to predict the j-th concept.
     """
-    # Check that their rank is the expected one
-    assert len(concepts.shape) == 2, (
-        f'Expected testing concept predictions to be a matrix with shape '
-        f'(n_samples, n_concepts) but instead got a matrix with shape '
-        f'{concepts.shape}'
-    )
 
-    (n_samples, n_concepts) = concepts.shape
-
-    # Handle the default parameters for both the generating function and
-    # the concept label cardinality
-    concept_label_cardinality = concept_label_cardinality or [
-        2 for _ in range(n_concepts)
-    ]
-    if predictor_model_fn is None:
-        # Then by default we will use a simple MLP classifier with one hidden
-        # ReLU layer with 32 units in it
-        def predictor_model_fn(
-            output_concept_classes=2,
-        ):
-            estimator = tf.keras.models.Sequential([
-                tf.keras.layers.Dense(
-                    32,
-                    input_dim=1,
-                    activation='relu'
-                ),
-                tf.keras.layers.Dense(
-                    output_concept_classes if output_concept_classes > 2 else 1,
-                    # We will merge the activation into the loss for numerical
-                    # stability
-                    activation=None,
-                ),
-            ])
-            estimator.compile(
-                # Use ADAM optimizer by default
-                optimizer='adam',
-                # Note: we assume labels come without a one-hot-encoding in the
-                #       case when the concepts are categorical.
-                loss=(
-                    tf.keras.losses.SparseCategoricalCrossentropy(
-                        from_logits=True
-                    ) if output_concept_classes > 2 else
-                    tf.keras.losses.BinaryCrossentropy(
-                        from_logits=True,
-                    )
-                ),
-            )
-            return estimator
-        predictor_train_kwags = predictor_train_kwags or {
-            'epochs': 25,
-            'batch_size': min(16, n_samples),
-            'verbose': 0,
-        }
-
-    # Time to start formulating our resulting matrix
-    result = np.zeros((n_concepts, n_concepts), dtype=np.float32)
-
-    # Split our test data into two subsets as we will need to train
-    # a classifier and then use that trained classifier in the remainder of the
-    # data for computing our scores
-    train_indexes, test_indexes = train_test_split(
-        list(range(n_samples)),
+    return concept_purity_matrix(
+        c_soft=concepts,
+        c_true=concepts,
+        concept_label_cardinality=concept_label_cardinality,
+        predictor_model_fn=predictor_model_fn,
+        predictor_train_kwags=predictor_train_kwags,
         test_size=test_size,
+        ignore_diags=True,
     )
-
-    for concept_i in range(n_concepts):
-        # Construct a test and training set of features for this concept
-        concept_train_x = concepts[train_indexes, concept_i:(concept_i + 1)]
-        concept_test_x = concepts[test_indexes, concept_i:(concept_i + 1)]
-
-        for concept_j in range(n_concepts):
-            # Let's populate the (i,j)-th entry of our matrix by first training
-            # a classifier to predict the ground truth value of concept j using
-            # the ground truth labels for concept i.
-            if concept_i == concept_j:
-                # Then this is trivially perfectly predictable
-                result[concept_i, concept_j] = 1
-                continue
-
-            # Construct a new estimator for performing this prediction
-            estimator = predictor_model_fn(
-                concept_label_cardinality[concept_j]
-            )
-            # Train it
-            estimator.fit(
-                concept_train_x,
-                np.squeeze(concepts[train_indexes, concept_j:(concept_j + 1)]),
-                **predictor_train_kwags,
-            )
-
-            # Compute the AUC of this classifier on the test data
-            preds = estimator.predict(concept_test_x)
-            true_concepts = concepts[test_indexes, concept_j]
-            if concept_label_cardinality[concept_j] > 2:
-                # Then lets apply a softmax activation over all the probability
-                # classes
-                preds = scipy.special.softmax(preds, axis=-1)
-
-                # And make sure we only compute the AUC of labels that are actually
-                # used
-                used_labels = np.sort(np.unique(true_concepts))
-                # And select just the labels that are in fact being used
-                true_concepts = tf.keras.utils.to_categorical(
-                    true_concepts,
-                    num_classes=concept_label_cardinality[concept_j],
-                )[:, used_labels]
-                preds = preds[:, used_labels]
-
-            auc = sklearn.metrics.roc_auc_score(
-                true_concepts,
-                preds,
-                multi_class='ovo',
-            )
-
-            # Finally, time to populate the actual entry of our resulting
-            # matrix
-            result[concept_i, concept_j] = auc
-
-    # And that's all folks
-    return result
 
 
 ################################################################################
@@ -559,6 +505,7 @@ def norm_purity_score(
     oracle_matrix=None,
     purity_matrix=None,
     output_matrices=False,
+    alignment_function=None,
 ):
     """
     Returns the purity score of the given soft concept representations `c_soft`
@@ -618,6 +565,13 @@ def norm_purity_score(
         (score, purity_matrix, oracle_matrix) containing the computed purity
         score, purity matrix, and oracle matrix given this function's
         arguments.
+    :param Function[(np.ndarray), np.ndarray] alignment_function: an optional
+        alignment function that takes as an input an (k, n_concepts) purity
+        matrix, where k >= n_concepts and its (i, j) value is the AUC of
+        predicting true concept j using soft representations i, and returns a
+        (n_concepts, n_concepts) matrix where a subset of n_concepts soft
+        concept representations has been aligned in a bijective fashion with
+        the set of all ground truth concepts.
 
 
     :returns Or[Tuple[float, np.ndarray, np.ndarray], float]: If output_matrices
@@ -628,7 +582,9 @@ def norm_purity_score(
         the returned value is 0. If output_matrices is True, then the output
         will be a tuple (score, purity_matrix, oracle_matrix) containing the
         computed purity score, purity matrix, and oracle matrix given this
-        function's arguments.
+        function's arguments. If alignment_function is given, then the purity
+        matrix will be a tuple (purity_matrix, aligned_purity_matrix) containing
+        the pre and post alignment purity matrices, respectively.
     """
     # First compute the predictor soft-concept purity matrix
     if purity_matrix is not None:
@@ -666,6 +622,14 @@ def norm_purity_score(
 
     # Finally, compute the norm of the absolute difference between the two
     # matrices
+    if alignment_function is not None:
+        # Then lets make sure we align our prediction matrix correctly
+        aligned_matrix = alignment_function(pred_matrix)
+        score = norm_fn(np.abs(oracle_matrix - aligned_matrix))
+        if output_matrices:
+            return score, (pred_matrix, aligned_matrix), oracle_matrix
+        return score
+
     score = norm_fn(np.abs(oracle_matrix - pred_matrix))
     if output_matrices:
         return score, pred_matrix, oracle_matrix
@@ -683,6 +647,7 @@ def encoder_norm_purity_score(
     oracle_matrix=None,
     output_matrices=False,
     purity_matrix=None,
+    alignment_function=None,
 ):
     """
     Returns the purity score of the concept representations generated by
@@ -741,6 +706,13 @@ def encoder_norm_purity_score(
         (score, purity_matrix, oracle_matrix) containing the computed purity
         score, purity matrix, and oracle matrix given this function's
         arguments.
+    :param Function[(np.ndarray), np.ndarray] alignment_function: an optional
+        alignment function that takes as an input an (k, n_concepts) purity
+        matrix, where k >= n_concepts and its (i, j) value is the AUC of
+        predicting true concept j using soft representations i, and returns a
+        (n_concepts, n_concepts) matrix where a subset of n_concepts soft
+        concept representations has been aligned in a bijective fashion with
+        the set of all ground truth concepts.
 
     :returns Or[Tuple[float, np.ndarray, np.ndarray], float]: If output_matrices
         is False (default behavior) then the output will be a non-negative float
@@ -750,7 +722,9 @@ def encoder_norm_purity_score(
         the returned value is 0. If output_matrices is True, then the output
         will be a tuple (score, purity_matrix, oracle_matrix) containing the
         computed purity score, purity matrix, and oracle matrix given this
-        function's arguments.
+        function's arguments. If alignment_function is given, then the purity
+        matrix will be a tuple (purity_matrix, aligned_purity_matrix) containing
+        the pre and post alignment purity matrices, respectively.
     """
     # Simply use the concept purity metric defined above when given
     # soft concepts as computed by the encoder model
@@ -764,4 +738,5 @@ def encoder_norm_purity_score(
         oracle_matrix=oracle_matrix,
         purity_matrix=purity_matrix,
         output_matrices=output_matrices,
+        alignment_function=alignment_function,
     )
