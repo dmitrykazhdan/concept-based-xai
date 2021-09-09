@@ -480,7 +480,8 @@ class ConceptWhiteningLayer(tf.keras.layers.Layer):
 
     def call(self, inputs, training=False):
         input_shape = tf.shape(inputs)
-        if len(input_shape) == 2:
+        static_imputs_shape = inputs.shape
+        if len(static_imputs_shape) == 2:
             # Add trivial dimensions to make it 4D so that it works as
             # it does with image data. We will undo this at the end
             inputs = tf.reshape(
@@ -490,7 +491,9 @@ class ConceptWhiteningLayer(tf.keras.layers.Layer):
                     axis=0,
                 ),
             )
-        if (self.data_format == "channels_last") and (len(input_shape) != 2):
+        if (self.data_format == "channels_last") and (
+            len(static_imputs_shape) != 2
+        ):
             # Then we will transpose to make things simpler so that downstream
             # we can always assume it is channels first
             # NHWC -> NCHW
@@ -505,10 +508,12 @@ class ConceptWhiteningLayer(tf.keras.layers.Layer):
             self.running_rot,
         )
 
-        if len(input_shape) == 2:
+        if len(static_imputs_shape) == 2:
             # Then let's get it back to its original shape
             result = tf.reshape(result, input_shape)
-        if (self.data_format == "channels_last") and (len(input_shape) != 2):
+        if (self.data_format == "channels_last") and (
+            len(static_imputs_shape) != 2
+        ):
             # Then let's move it back to channels last
             # NCHW -> NHWC
             result = tf.transpose(

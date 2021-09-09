@@ -217,7 +217,14 @@ def concept_purity_matrix(
     # Construct a list concept_label_cardinality that maps a concept to the
     # cardinality of its label set as specified by the testing data
     (n_samples, n_true_concepts) = c_true.shape
-    n_soft_concepts = c_soft.shape[-1]
+    if isinstance(c_soft, np.ndarray):
+        n_soft_concepts = c_soft.shape[-1]
+    else:
+        assert isinstance(c_soft, list), (
+            f'c_soft must be passed as either a list or a np.ndarray. '
+            f'Instead we got an instance of "{type(c_soft).__name__}".'
+        )
+        n_soft_concepts = len(c_soft)
 
     assert n_soft_concepts >= n_true_concepts, (
         f'Expected at least as many soft concept representations as true '
@@ -273,10 +280,6 @@ def concept_purity_matrix(
             estimator = tf.keras.models.Sequential([
                 tf.keras.layers.Dense(
                     32,
-                    input_dim=(
-                        input_concept_classes if input_concept_classes > 2
-                        else 1
-                    ),
                     activation='relu'
                 ),
                 tf.keras.layers.Dense(
@@ -302,11 +305,11 @@ def concept_purity_matrix(
             )
             return estimator
 
-        predictor_train_kwags = predictor_train_kwags or {
-            'epochs': 25,
-            'batch_size': min(16, n_samples),
-            'verbose': 0,
-        }
+    predictor_train_kwags = predictor_train_kwags or {
+        'epochs': 25,
+        'batch_size': min(16, n_samples),
+        'verbose': 0,
+    }
 
     # Time to start formulating our resulting matrix
     result = np.zeros((n_soft_concepts, n_true_concepts), dtype=np.float32)

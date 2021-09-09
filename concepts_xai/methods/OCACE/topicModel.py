@@ -33,23 +33,39 @@ class TopicModel(tf.keras.Model):
         data_format="channels_last",
         allow_gradient_flow_to_c2l=False,
         acc_metric=None,
+        initial_topic_vector=None,
         **kwargs,
     ):
         super(TopicModel, self).__init__(**kwargs)
 
+        initializer = tf.keras.initializers.RandomUniform(
+            minval=-0.5,
+            maxval=0.5,
+            seed=seed,
+        )
+
         # Initialise our topic vector tensor which we will learn
         # as part of our training
-        self.topic_vector = self.add_weight(
-            name="topic_vector",
-            shape=(n_channels, n_concepts),
-            dtype=tf.float32,
-            initializer=tf.keras.initializers.RandomUniform(
-                minval=-0.5,
-                maxval=0.5,
-                seed=seed,
-            ),
-            trainable=True,
-        )
+        if initial_topic_vector is not None:
+            self.topic_vector = self.add_weight(
+                name="topic_vector",
+                shape=(n_channels, n_concepts),
+                dtype=tf.float32,
+                initializer=lambda *args, **kwargs: initial_topic_vector,
+                trainable=True,
+            )
+        else:
+            self.topic_vector = self.add_weight(
+                name="topic_vector",
+                shape=(n_channels, n_concepts),
+                dtype=tf.float32,
+                initializer=tf.keras.initializers.RandomUniform(
+                    minval=-0.5,
+                    maxval=0.5,
+                    seed=seed,
+                ),
+                trainable=True,
+            )
 
         # Initialise the g model which will be in charge of reconstructing
         # the model latent activations from the concept scores alone
