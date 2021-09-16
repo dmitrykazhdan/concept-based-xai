@@ -1,6 +1,7 @@
 import numpy as np
 from sklearn.metrics import accuracy_score, roc_auc_score
 from sklearn.model_selection import train_test_split
+from sklearn.feature_selection import mutual_info_classif
 
 
 def niche_completeness(c_pred, y_true, predictor_model, niches):
@@ -154,12 +155,21 @@ def niche_purity(c_pred, y_true, predictor_model, niches):
     return result
 
 
-def niche_finding(c, y, mode='abs', threshold=0.5):
+def niche_finding(c, y, mode='mi', threshold=0.5):
     n_concepts = c.shape[1]
-    niching_matrix = np.corrcoef(np.hstack([c, y]).T)
-    cy_cov = niching_matrix[:n_concepts, n_concepts:]
-    if mode == 'abs':
-        niches = np.abs(cy_cov) > threshold
+    if mode == 'corr':
+        corrm = np.corrcoef(np.hstack([c, y]).T)
+        niching_matrix = corrm[:n_concepts, n_concepts:]
+        niches = np.abs(niching_matrix) > threshold
+    elif mode == 'mi':
+        nm = []
+        for yj in y.T:
+            mi = mutual_info_classif(c, yj)
+            nm.append(mi)
+        nm = np.vstack(nm).T
+        niching_matrix = nm / np.max(nm)
+        niches = niching_matrix > threshold
     else:
-        niches = cy_cov > threshold
-    return niches, cy_cov, niching_matrix
+        return None, None, None
+
+    return niches, niching_matrix
