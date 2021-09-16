@@ -36,7 +36,7 @@ def niche_completeness(c_pred, y_true, predictor_model, niches):
 
         y_pred_list.append(y_pred_niche[:, task])
 
-    y_preds = np.vstack(y_pred_list)
+    y_preds = np.vstack(y_pred_list).T
     auc = roc_auc_score(y_true, y_preds, multi_class='ovo')
 
     result = {
@@ -142,7 +142,7 @@ def niche_purity(c_pred, y_true, predictor_model, niches):
 
         y_pred_list.append(y_pred_niche_out[:, task])
 
-    y_preds = np.vstack(y_pred_list)
+    y_preds = np.vstack(y_pred_list).T
     auc = roc_auc_score(y_true, y_preds, multi_class='ovo')
 
     result = {
