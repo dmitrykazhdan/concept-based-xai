@@ -2,6 +2,7 @@ import numpy as np
 from sklearn.metrics import accuracy_score, roc_auc_score
 from sklearn.model_selection import train_test_split
 from sklearn.feature_selection import mutual_info_classif
+from scipy.special import softmax
 
 
 def niche_completeness(c_pred, y_true, predictor_model, niches):
@@ -22,27 +23,22 @@ def niche_completeness(c_pred, y_true, predictor_model, niches):
         niche[:, niches[:, task] > 0] = c_pred[:, niches[:, task] > 0]
 
         # compute task predictions
-        y_pred_niche = predictor_model.predict(niche)
+        y_pred_niche = predictor_model.predict_proba(niche)
         if predictor_model.__class__.__name__ == 'Sequential':
             # get class labels from logits
             y_pred_niche = y_pred_niche > 0
         elif len(y_pred_niche.shape) == 1:
             y_pred_niche = y_pred_niche[:, np.newaxis]
 
-        # compute niche accuracy
-        # the higher the better (high predictive power of the niche)
-        accuracy_niche = accuracy_score(y_true[:, task], y_pred_niche[:, task])
-        niche_completeness_list.append(accuracy_niche)
-
         y_pred_list.append(y_pred_niche[:, task])
 
     y_preds = np.vstack(y_pred_list).T
-    auc = roc_auc_score(y_true, y_preds, multi_class='ovo')
+    y_preds = softmax(y_preds, axis=1)
+    auc = roc_auc_score(y_true.argmax(axis=1), y_preds, multi_class='ovo')
 
     result = {
         'auc_purity': auc,
-        'niche_completeness_mean': np.mean(niche_completeness_list),
-        'niche_completeness': niche_completeness_list,
+        'y_preds': y_preds,
     }
     return result
 
@@ -50,7 +46,7 @@ def niche_completeness(c_pred, y_true, predictor_model, niches):
 def niche_completeness_ratio(c_pred, y_true, predictor_model, niches):
     '''
     Computes the niche completeness ratio for the downstream task
-    :param c_pred: Concept data predictions, numpy array of shape (n_samples, n_concepts)
+    :param c_pred: Concept d`ata predictions, numpy array of shape (n_samples, n_concepts)
     :param y_true: Ground-truth task label data, numpy array of shape (n_samples, n_tasks)
     :param predictor_model: sklearn model to use for predicting the task labels from the concept data
     :return: Accuracy ratio between the accuracy of predictor_model evaluated on niches and
@@ -58,7 +54,7 @@ def niche_completeness_ratio(c_pred, y_true, predictor_model, niches):
     '''
     n_tasks = y_true.shape[1]
 
-    y_pred_test = predictor_model.predict(c_pred)
+    y_pred_test = predictor_model.predict_proba(c_pred)
     if predictor_model.__class__.__name__ == 'Sequential':
         # get class labels from logits
         y_pred_test = y_pred_test > 0
@@ -73,7 +69,7 @@ def niche_completeness_ratio(c_pred, y_true, predictor_model, niches):
         niche[:, niches[:, task] > 0] = c_pred[:, niches[:, task] > 0]
 
         # compute task predictions
-        y_pred_niche = predictor_model.predict(niche)
+        y_pred_niche = predictor_model.predict_proba(niche)
         if predictor_model.__class__.__name__ == 'Sequential':
             # get class labels from logits
             y_pred_niche = y_pred_niche > 0
@@ -108,8 +104,6 @@ def niche_purity(c_pred, y_true, predictor_model, niches):
     n_tasks = y_true.shape[1]
 
     # compute niche completeness for each task
-    niche_purity_list = []
-    niche_impurity_list = []
     y_pred_list = []
     for task in range(n_tasks):
         # find niche
@@ -121,36 +115,23 @@ def niche_purity(c_pred, y_true, predictor_model, niches):
         niche_out[:, niches[:, task] <= 0] = c_pred[:, niches[:, task] <= 0]
 
         # compute task predictions
-        y_pred_niche = predictor_model.predict(niche)
-        y_pred_niche_out = predictor_model.predict(niche_out)
+        y_pred_niche = predictor_model.predict_proba(niche)
+        y_pred_niche_out = predictor_model.predict_proba(niche_out)
         if predictor_model.__class__.__name__ == 'Sequential':
             # get class labels from logits
-            y_pred_niche = y_pred_niche > 0
             y_pred_niche_out = y_pred_niche_out > 0
         elif len(y_pred_niche.shape) == 1:
-            y_pred_niche = y_pred_niche[:, np.newaxis]
             y_pred_niche_out = y_pred_niche_out[:, np.newaxis]
-
-        # compute purity scores
-        # niche purity: the task accuracy obtained using concepts INSIDE the niche
-        niche_purity = accuracy_score(y_true[:, task], y_pred_niche[:, task])
-        # niche impurity: the task accuracy obtained using concepts OUTSIDE the niche w.r.t.
-        niche_impurity = accuracy_score(y_true[:, task], y_pred_niche_out[:, task])
-
-        niche_purity_list.append(niche_purity)
-        niche_impurity_list.append(niche_impurity)
 
         y_pred_list.append(y_pred_niche_out[:, task])
 
     y_preds = np.vstack(y_pred_list).T
-    auc = roc_auc_score(y_true, y_preds, multi_class='ovo')
+    y_preds = softmax(y_preds, axis=1)
+    auc = roc_auc_score(y_true.argmax(axis=1), y_preds, multi_class='ovo')
 
     result = {
         'auc_impurity': auc,
-        'niche_purity_mean': np.mean(niche_purity_list),
-        'niche_impurity_mean': np.mean(niche_impurity_list),
-        'niche_purity': niche_purity_list,
-        'niche_impurity': niche_impurity_list,
+        'y_preds': y_preds,
     }
     return result
 
