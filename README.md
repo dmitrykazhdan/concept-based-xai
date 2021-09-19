@@ -1,19 +1,19 @@
 # Concept-based XAI Library
 
-CXAI is an open-source library for research on concept-based Explainable AI (XAI). 
+CXAI is an open-source library for research on concept-based Explainable AI (XAI).
 
 CXAI supports a variety of different models, datasets, and evaluation metrics, associated with concept-based approaches:
 
 
 ### High-level Specs:
 
-_Methods_: 
-- [Now You See Me (CME): Concept-based Model Extraction](https://arxiv.org/abs/2010.13233)
+_Methods_:
+- [Now You See Me (CME): Concept-based Model Extraction](https://arxiv.org/abs/2010.13233).
 - [Concept Bottleneck Models](https://arxiv.org/abs/2007.04612)
 - [Weakly-Supervised Disentanglement Without Compromises](https://arxiv.org/abs/2002.02886)
 - [Challenging Common Assumptions in the Unsupervised Learning of Disentangled Representations](https://arxiv.org/abs/1811.12359)
-- [Concept Whitening for Interpretable Image Recognition](https://arxiv.org/abs/2002.01650) (note: this approach has not yet been tested)
-- [On Completeness-aware Concept-Based Explanations in Deep Neural Networks](https://arxiv.org/abs/1910.07969) (note: this approach has not yet been tested)
+- [Concept Whitening for Interpretable Image Recognition](https://arxiv.org/abs/2002.01650)
+- [On Completeness-aware Concept-Based Explanations in Deep Neural Networks](https://arxiv.org/abs/1910.07969)
 
 
 _Datasets_:

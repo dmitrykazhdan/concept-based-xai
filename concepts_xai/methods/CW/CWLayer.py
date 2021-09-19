@@ -210,13 +210,19 @@ class ConceptWhiteningLayer(tf.keras.layers.Layer):
             elif aggregator == 'max_pool_mean':
                 # First downsample using a max pool and then continue with
                 # a mean
+                window_size = min(
+                    2,
+                    outputs.shape[-1],
+                    outputs.shape[-2],
+                )
                 scores = tf.nn.max_pool(
                     outputs,
-                    ksize=2,
-                    strides=2,
+                    ksize=window_size,
+                    strides=window_size,
                     padding="SAME",
+                    data_format="NCHW",
                 )
-                scores = tf.math.reduce_mean(outputs, axis=[2, 3])
+                scores = tf.math.reduce_mean(scores, axis=[2, 3])
             elif aggregator == 'max':
                 # Simply select the maximum value across a given channel
                 scores = tf.math.reduce_max(outputs, axis=[2, 3])
@@ -324,7 +330,7 @@ class ConceptWhiteningLayer(tf.keras.layers.Layer):
                     perm=[0, 3, 1, 2],
                 )
 
-            # Produce the whitened + rotated activations of this concept group
+            # Produce the whitened only activations of this concept group
             X_hat = self._compute_whitened_activations(
                 concept_samples,
                 rotate=False,
@@ -337,11 +343,14 @@ class ConceptWhiteningLayer(tf.keras.layers.Layer):
             # And update the gradient by performing an accumulation using the
             # requested activation mode
             if self.activation_mode == 'mean':
-                grad_col = tf.math.reduce_mean(X_hat, axis=[0, 2, 3])
+                grad_col = -tf.math.reduce_mean(
+                    tf.math.reduce_mean(X_hat, axis=[2, 3]),
+                    axis=0,
+                )
 
                 self.sum_G[feature_idx, :].assign(
                     (
-                        (-grad_col * self.momentum)
+                        (grad_col * self.momentum)
                     ) + (1. - self.momentum) * self.sum_G[feature_idx, :]
                 )
 
@@ -385,11 +394,14 @@ class ConceptWhiteningLayer(tf.keras.layers.Layer):
                     tf.math.equal(X_test_nchw, X_test_unpool),
                     tf.float32,
                 )
+                # Average only over those elements selected by the max pool
+                # operator.
                 grad = (
                     tf.reduce_sum(X_hat * maxpool_mask, axis=(2, 3)) /
                     tf.reduce_sum(maxpool_mask, axis=(2, 3))
                 )
 
+                # And average over all samples
                 grad = -tf.reduce_mean(grad, axis=0)
                 self.sum_G[feature_idx, :].assign(
                     self.momentum * grad +
