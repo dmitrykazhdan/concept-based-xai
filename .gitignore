@@ -1,6 +1,7 @@
 .DS_Store
 .idea/
 .python-version
+*.ipynb
 __pycache__
 build/
 cars/

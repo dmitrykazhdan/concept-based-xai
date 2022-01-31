@@ -1,8 +1,10 @@
 # Concept-based XAI Library
 
-CXAI is an open-source library for research on concept-based Explainable AI (XAI).
+CXAI is an open-source library for research on concept-based Explainable AI
+(XAI).
 
-CXAI supports a variety of different models, datasets, and evaluation metrics, associated with concept-based approaches:
+CXAI supports a variety of different models, datasets, and evaluation metrics,
+associated with concept-based approaches:
 
 
 ### High-level Specs:
@@ -14,6 +16,8 @@ _Methods_:
 - [Challenging Common Assumptions in the Unsupervised Learning of Disentangled Representations](https://arxiv.org/abs/1811.12359)
 - [Concept Whitening for Interpretable Image Recognition](https://arxiv.org/abs/2002.01650)
 - [On Completeness-aware Concept-Based Explanations in Deep Neural Networks](https://arxiv.org/abs/1910.07969)
+- [Towards Robust Interpretability with Self-Explaining Neural Networks
+](https://arxiv.org/abs/1806.07538)
 
 
 _Datasets_:
@@ -46,7 +50,7 @@ to display all the subpackages included from this installation.
 ### Subpackages
 
 - `datasets`: datasets to use, including task functions.
-- `evaluation`: different evaluation metrics to use for evaluating the semi-supervised concept labelling methods.
+- `evaluation`: different evaluation metrics to use for evaluating our methods.
 - `experiments`: experimental setups (To-be-added soon)
 - `methods`: defines the concept-based methods. Note: SSCC defines wrappers around these methods, that turn then into semi-supervised concept labelling methods.
 - `utils`: contains utility functions for model creation as well as data management.
@@ -65,4 +69,6 @@ If you find this code useful in your research, please consider citing:
 }
 ```
 
-This work has been presented at the [RAI](https://sites.google.com/view/rai-workshop/), [WeaSuL](https://weasul.github.io/), and [RobustML](https://sites.google.com/connect.hku.hk/robustml-2021/home) workshops, at [The Ninth International Conference on Learning Representations (ICLR 2021)](https://iclr.cc/).
+This work has been presented at the [RAI](https://sites.google.com/view/rai-workshop/), [WeaSuL](https://weasul.github.io/), and
+[RobustML](https://sites.google.com/connect.hku.hk/robustml-2021/home) workshops, at [The Ninth International Conference on Learning
+Representations (ICLR 2021)](https://iclr.cc/).
