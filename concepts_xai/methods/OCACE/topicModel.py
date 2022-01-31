@@ -252,13 +252,3 @@ class TopicModel(tf.keras.Model):
             training=False,
         )
         return predicted_labels, concept_scores
-
-
-
-
-
-
-
-
-
-

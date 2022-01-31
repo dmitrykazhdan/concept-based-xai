@@ -169,6 +169,7 @@ class JointConceptBottleneckModel(tf.keras.Model):
         task_loss,
         alpha=0.01,
         metrics=None,
+        pass_concept_logits=False,
         **kwargs
     ):
         """
@@ -198,6 +199,11 @@ class JointConceptBottleneckModel(tf.keras.Model):
             there is no learning enforced in the bottleneck.
         :param List[tf.keras.metrics.Metric]  metrics: A list of possible
             metrics of interest which one may want to monitor during training.
+        :param Bool pass_concept_logits: Whether the concept bottleneck will
+            be passed to the concept-to-task model as logits (i.e., without
+            a softmax or sigmoid operation applied to it) or not. If this is
+            set to false, then it is the responsability of the input encoder
+            model to output a valid probability distribution.
         :param Dict[Any, Any] kwargs: Keras Layer specific kwargs to be passed
             to the parent constructor.
         """
@@ -223,6 +229,7 @@ class JointConceptBottleneckModel(tf.keras.Model):
         self.alpha = alpha
         self.task_loss = task_loss
         self.extra_metrics = metrics or []
+        self.pass_concept_logits = pass_concept_logits
 
         # dummy call to build the model
         self(tf.zeros(list(map(
@@ -300,7 +307,7 @@ class JointConceptBottleneckModel(tf.keras.Model):
                 ):
                     # Then use binary loss here
                     concept_loss += tf.keras.losses.BinaryCrossentropy(
-                        from_logits=False,
+                        from_logits=self.pass_concept_logits,
                     )(
                         true_vec,
                         predicted_vec,
@@ -316,7 +323,7 @@ class JointConceptBottleneckModel(tf.keras.Model):
                     # Otherwise use normal cross entropy
                     concept_loss += \
                         tf.keras.losses.SparseCategoricalCrossentropy(
-                            from_logits=False,
+                            from_logits=self.pass_concept_logits,
                         )(
                             true_vec,
                             predicted_vec,
@@ -334,7 +341,7 @@ class JointConceptBottleneckModel(tf.keras.Model):
             # will assume in that instance they all represent independent
             # binary concepts
             concept_loss += tf.keras.losses.BinaryCrossentropy(
-                from_logits=False,
+                from_logits=self.pass_concept_logits,
             )(
                 true_concepts,
                 predicted_concepts,
@@ -458,6 +465,7 @@ class BypassJointCBM(JointConceptBottleneckModel):
         task_loss,
         alpha=0.01,
         metrics=None,
+        pass_concept_logits=False,
         **kwargs,
     ):
         """
@@ -496,6 +504,11 @@ class BypassJointCBM(JointConceptBottleneckModel):
             there is no learning enforced in the bottleneck.
         :param List[tf.keras.metrics.Metric]  metrics: A list of possible
             metrics of interest which one may want to monitor during training.
+        :param Bool pass_concept_logits: Whether the concept bottleneck will
+            be passed to the concept-to-task model as logits (i.e., without
+            a softmax or sigmoid operation applied to it) or not. If this is
+            set to false, then it is the responsability of the input encoder
+            model to output a valid probability distribution.
         :param Dict[Any, Any] kwargs: Keras Layer specific kwargs to be passed
             to the parent constructor.
 
@@ -506,6 +519,7 @@ class BypassJointCBM(JointConceptBottleneckModel):
             task_loss=task_loss,
             alpha=alpha,
             metrics=metrics,
+            pass_concept_logits=pass_concept_logits,
             **kwargs
         )
 

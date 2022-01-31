@@ -47,7 +47,6 @@ class BaseVAE(tf.keras.Model):
         return self.decoder(z)
 
     def _compute_losses(self, x, is_training=False):
-
         z_mean, z_logvar = self.encoder(x, training=is_training)
         z_sampled = self.sample_from_latent_distribution(z_mean, z_logvar)
         reconstructions = self.decoder(z_sampled, training=is_training)
@@ -76,7 +75,9 @@ class BaseVAE(tf.keras.Model):
             )
 
         gradients = tape.gradient(loss, self.trainable_variables)
-        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
+        self.optimizer.apply_gradients(
+            zip(gradients, self.trainable_variables)
+        )
         self.update_metrics([
             ("loss", loss),
             ("reconstruction_loss", reconstruction_loss),
