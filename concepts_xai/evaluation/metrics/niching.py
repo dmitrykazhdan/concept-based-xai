@@ -14,7 +14,6 @@ def niche_completeness(c_pred, y_true, predictor_model, niches):
     :return: Accuracy of predictor_model, evaluated on niches obtained from the provided concept and label data
     '''
     n_tasks = y_true.shape[1]
-
     # compute niche completeness for each task
     niche_completeness_list, y_pred_list = [], []
     for task in range(n_tasks):
@@ -34,7 +33,7 @@ def niche_completeness(c_pred, y_true, predictor_model, niches):
 
     y_preds = np.vstack(y_pred_list).T
     y_preds = softmax(y_preds, axis=1)
-    auc = roc_auc_score(y_true.argmax(axis=1), y_preds, multi_class='ovo')
+    auc = roc_auc_score(y_true, y_preds, multi_class='ovo')
 
     result = {
         'auc_purity': auc,
@@ -127,7 +126,7 @@ def niche_purity(c_pred, y_true, predictor_model, niches):
 
     y_preds = np.vstack(y_pred_list).T
     y_preds = softmax(y_preds, axis=1)
-    auc = roc_auc_score(y_true.argmax(axis=1), y_preds, multi_class='ovo')
+    auc = roc_auc_score(y_true, y_preds, multi_class='ovo')
 
     result = {
         'auc_impurity': auc,

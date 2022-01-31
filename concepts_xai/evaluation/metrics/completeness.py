@@ -291,7 +291,7 @@ def completeness_score(
 
     # That gives us everything we need
     if f_prime_acc == random_pred_acc:
-        return 0
+        return 0, g_model
     completeness = (f_prime_acc - random_pred_acc) / (f_acc - random_pred_acc)
     return completeness, g_model
 

@@ -234,7 +234,7 @@ def concept_purity_matrix(
     )
 
     if isinstance(c_soft, np.ndarray):
-        # Then, all concepts must be binary
+        # Then, all concepts must have the same representation size
         assert c_soft.shape[0] == c_true.shape[0], (
             f'Expected a many test soft-concepts as ground truth test '
             f'concepts. Instead got {c_soft.shape[0]} soft-concepts '
@@ -243,12 +243,16 @@ def concept_purity_matrix(
         if concept_label_cardinality is None:
             concept_label_cardinality = [2 for _ in range(n_soft_concepts)]
         # And for simplicity and consistency, we will rewrite c_soft as a
-        # list such that i-th entry contains an array with shape (n_samples, 1)
-        # indicating the probability that concept i is activated for all
-        # test samples.
+        # list such that i-th entry contains an array with shape
+        # (n_samples, repr_size) indicating the representation of the i-th
+        # concept for all samples
         new_c_soft = [None for _ in range(n_soft_concepts)]
         for i in range(n_soft_concepts):
-            new_c_soft[i] = np.expand_dims(c_soft[..., i], axis=-1)
+            if len(c_soft.shape) == 1:
+                # If it is a scalar representation, then let's make it explicit
+                new_c_soft[i] = np.expand_dims(c_soft[..., i], axis=-1)
+            else:
+                new_c_soft[i] = c_soft[..., i]
         c_soft = new_c_soft
     else:
         # Else, time to infer these values from the given list of soft
@@ -274,19 +278,20 @@ def concept_purity_matrix(
         # Then by default we will use a simple MLP classifier with one hidden
         # ReLU layer with 32 units in it
         def predictor_model_fn(
-            input_concept_classes=2,
             output_concept_classes=2,
         ):
             estimator = tf.keras.models.Sequential([
                 tf.keras.layers.Dense(
                     32,
-                    activation='relu'
+                    activation='relu',
+                    name="predictor_fc_1",
                 ),
                 tf.keras.layers.Dense(
                     output_concept_classes if output_concept_classes > 2 else 1,
                     # We will merge the activation into the loss for numerical
                     # stability
                     activation=None,
+                    name="predictor_fc_out",
                 ),
             ])
             estimator.compile(
@@ -326,6 +331,15 @@ def concept_purity_matrix(
         # Construct a test and training set of features for this concept
         concept_soft_train_x = c_soft[src_soft_concept][train_indexes, ...]
         concept_soft_test_x = c_soft[src_soft_concept][test_indexes, ...]
+        if len(concept_soft_train_x.shape) == 1:
+            concept_soft_train_x = tf.expand_dims(
+                concept_soft_train_x,
+                axis=-1,
+            )
+            concept_soft_test_x = tf.expand_dims(
+                concept_soft_test_x,
+                axis=-1,
+            )
 
         for tgt_true_concept in range(n_true_concepts):
             # Let's populate the (i,j)-th entry of our matrix by first training
@@ -339,7 +353,6 @@ def concept_purity_matrix(
 
             # Construct a new estimator for performing this prediction
             estimator = predictor_model_fn(
-                concept_label_cardinality[src_soft_concept],
                 concept_label_cardinality[tgt_true_concept]
             )
             # Train it
@@ -418,8 +431,7 @@ def encoder_concept_purity_matrix(
         (n_samples, n_concepts).
     :param Function[(int, int), sklearn-like Estimator] predictor_model_fn: A
         function generator that takes as an argument two values, the number of
-        classes for the input concept and the number of classes for the output
-        target concept, respectively, and produces an sklearn-like Estimator
+        the output target concept and produces an sklearn-like Estimator
         which one can train for predicting a concept given another concept's
         soft concept values. If not given then we will use a 3-layer ReLU MLP
         as our predictor.
@@ -466,10 +478,10 @@ def oracle_purity_matrix(
         all concepts are binary (i.e., concept_label_cardinality[i] = 2 for all
         i).
     :param Function[(int), sklearn-like Estimator] predictor_model_fn: A
-        function generator that takes as an argument the number of classes for
+        function generator that takes as an argument two values, the number of
         the output target concept and produces an sklearn-like Estimator
         which one can train for predicting a concept given another concept's
-        concept's value. If not given then we will use a 3-layer ReLU MLP
+        soft concept values. If not given then we will use a 3-layer ReLU MLP
         as our predictor.
     :param Dict[Any, Any] predictor_train_kwags: optional arguments to pass
         the estimator when calling its `fit` method.
@@ -509,6 +521,7 @@ def norm_purity_score(
     purity_matrix=None,
     output_matrices=False,
     alignment_function=None,
+    concept_label_cardinality=None,
 ):
     """
     Returns the purity score of the given soft concept representations `c_soft`
@@ -539,8 +552,7 @@ def norm_purity_score(
         (n_samples, n_concepts).
     :param Function[(int, int), sklearn-like Estimator] predictor_model_fn: A
         function generator that takes as an argument two values, the number of
-        classes for the input concept and the number of classes for the output
-        target concept, respectively, and produces an sklearn-like Estimator
+        the output target concept and produces an sklearn-like Estimator
         which one can train for predicting a concept given another concept's
         soft concept values. If not given then we will use a 3-layer ReLU MLP
         as our predictor.
@@ -589,6 +601,14 @@ def norm_purity_score(
         matrix will be a tuple (purity_matrix, aligned_purity_matrix) containing
         the pre and post alignment purity matrices, respectively.
     """
+
+    # Now the concept_label_cardinality vector from the given soft labels
+    (n_samples, n_concepts) = c_true.shape
+    if concept_label_cardinality is None:
+        concept_label_cardinality = [
+            len(set(c_true[:, i]))
+            for i in range(n_concepts)
+        ]
     # First compute the predictor soft-concept purity matrix
     if purity_matrix is not None:
         pred_matrix = purity_matrix
@@ -599,19 +619,10 @@ def norm_purity_score(
             predictor_model_fn=predictor_model_fn,
             predictor_train_kwags=predictor_train_kwags,
             test_size=test_size,
+            concept_label_cardinality=concept_label_cardinality,
         )
 
-    # Now infer the concept_label_cardinality vector from the given soft labels
-    (n_samples, n_concepts) = c_true.shape
-    if isinstance(c_soft, np.ndarray):
-        # Then, all concepts must be binary
-        concept_label_cardinality = [2 for _ in range(n_concepts)]
-    else:
-        # Else, time to infer these values from the given list of soft
-        # labels
-        concept_label_cardinality = [None for _ in range(n_concepts)]
-        for i, soft_labels in enumerate(c_soft):
-            concept_label_cardinality[i] = max(soft_labels.shape[-1], 2)
+
 
     # Compute the oracle's purity matrix
     if oracle_matrix is None:
@@ -679,8 +690,7 @@ def encoder_norm_purity_score(
         (n_samples, n_concepts).
     :param Function[(int, int), sklearn-like Estimator] predictor_model_fn: A
         function generator that takes as an argument two values, the number of
-        classes for the input concept and the number of classes for the output
-        target concept, respectively, and produces an sklearn-like Estimator
+        the output target concept and produces an sklearn-like Estimator
         which one can train for predicting a concept given another concept's
         soft concept values. If not given then we will use a 3-layer ReLU MLP
         as our predictor.
