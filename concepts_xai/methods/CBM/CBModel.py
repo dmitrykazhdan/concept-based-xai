@@ -170,6 +170,8 @@ class JointConceptBottleneckModel(tf.keras.Model):
         alpha=0.01,
         metrics=None,
         pass_concept_logits=False,
+        concept_sample_weights=None,
+        single_multiclass_concept=False,
         **kwargs
     ):
         """
@@ -223,13 +225,22 @@ class JointConceptBottleneckModel(tf.keras.Model):
             name="concept_accuracy"
         )
         self._acc_metric = \
-            tf.keras.metrics.SparseTopKCategoricalAccuracy(k=1)
+            lambda y_true, y_pred: tf.keras.metrics.sparse_top_k_categorical_accuracy(
+                y_true,
+                y_pred,
+                k=1,
+            )
         self._bin_acc_metric = \
-            tf.keras.metrics.BinaryAccuracy()
+            lambda y_true, y_pred: tf.math.reduce_mean(
+                tf.keras.metrics.binary_accuracy(y_true, y_pred),
+                axis=-1,
+        )
         self.alpha = alpha
         self.task_loss = task_loss
         self.extra_metrics = metrics or []
         self.pass_concept_logits = pass_concept_logits
+        self.concept_sample_weights = concept_sample_weights
+        self.single_multiclass_concept = single_multiclass_concept
 
         # dummy call to build the model
         self(tf.zeros(list(map(
@@ -302,6 +313,9 @@ class JointConceptBottleneckModel(tf.keras.Model):
         if isinstance(predicted_concepts, list):
             for i, predicted_vec in enumerate(predicted_concepts):
                 true_vec = true_concepts[:, i]
+                sample_weight = None
+                if self.concept_sample_weights is not None:
+                    sample_weight = self.concept_sample_weights[:, i:i+1]
                 if (len(predicted_vec.shape) == 1) or (
                     predicted_vec.shape[-1] == 1
                 ):
@@ -311,6 +325,7 @@ class JointConceptBottleneckModel(tf.keras.Model):
                     )(
                         true_vec,
                         predicted_vec,
+                        sample_weight=sample_weight,
                     )
                     if len(predicted_vec.shape) == 2:
                         # Then, let's remove the degenerate dimension
@@ -327,6 +342,7 @@ class JointConceptBottleneckModel(tf.keras.Model):
                         )(
                             true_vec,
                             predicted_vec,
+                            sample_weight=sample_weight,
                         )
                     concept_accuracy += self._acc_metric(
                         true_vec,
@@ -336,6 +352,19 @@ class JointConceptBottleneckModel(tf.keras.Model):
             # And time to normalize over all the different heads
             concept_loss = concept_loss / len(predicted_concepts)
             concept_accuracy = concept_accuracy / len(predicted_concepts)
+        elif self.single_multiclass_concept:
+            concept_loss += \
+                tf.keras.losses.SparseCategoricalCrossentropy(
+                    from_logits=self.pass_concept_logits,
+                )(
+                    true_concepts,
+                    predicted_concepts,
+                    sample_weight=self.concept_sample_weights,
+                )
+            concept_accuracy += self._acc_metric(
+                true_concepts,
+                predicted_concepts,
+            )
         else:
             # Then use binary loss here as we are given a single vector and we
             # will assume in that instance they all represent independent
@@ -345,6 +374,7 @@ class JointConceptBottleneckModel(tf.keras.Model):
             )(
                 true_concepts,
                 predicted_concepts,
+                sample_weight=self.concept_sample_weights,
             )
             concept_accuracy = self._bin_acc_metric(
                 true_concepts,
@@ -466,6 +496,8 @@ class BypassJointCBM(JointConceptBottleneckModel):
         alpha=0.01,
         metrics=None,
         pass_concept_logits=False,
+        concept_sample_weights=None,
+        single_multiclass_concept=False,
         **kwargs,
     ):
         """
@@ -520,6 +552,8 @@ class BypassJointCBM(JointConceptBottleneckModel):
             alpha=alpha,
             metrics=metrics,
             pass_concept_logits=pass_concept_logits,
+            concept_sample_weights=concept_sample_weights,
+            single_multiclass_concept=single_multiclass_concept,
             **kwargs
         )
 
