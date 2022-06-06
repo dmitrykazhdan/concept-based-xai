@@ -6,39 +6,71 @@ import tensorflow as tf
 
 from .latentFactorData import LatentFactorData, get_task_data
 
-SMALLNORB_concept_names  = ['category', 'instance', 'elevation', 'azimuth', 'lighting']
+SMALLNORB_concept_names = [
+    'category',
+    'instance',
+    'elevation',
+    'azimuth',
+    'lighting',
+]
 SMALLNORB_concept_n_vals = [5, 10, 9, 18, 6]
+
 
 class SmallNorb(LatentFactorData):
 
-    def __init__(self, dataset_path, task_name='category_full', train_size=0.85, random_state=42):
+    def __init__(
+        self,
+        dataset_path,
+        task_name='category_full',
+        train_size=0.85,
+        random_state=42,
+    ):
         '''
         :param dataset_path:  path to the smallnorb files directory
         :param task_name: the task to use with the dataset for creating labels
         '''
 
-        super().__init__(dataset_path=dataset_path, task_name=task_name, num_factors=5,
-                         sample_shape=[64, 64, 1], c_names=SMALLNORB_concept_names,
-                         task_fn=SMALLNORB_TASKS[task_name])
+        super().__init__(
+            dataset_path=dataset_path,
+            task_name=task_name,
+            num_factors=5,
+            sample_shape=[64, 64, 1],
+            c_names=SMALLNORB_concept_names,
+            task_fn=SMALLNORB_TASKS[task_name],
+        )
         self._get_generators(train_size, random_state)
 
     def _load_x_c_data(self):
         files_dir = self.dataset_path
         filename_template = "smallnorb-{}-{}.mat"
-        splits = ["5x46789x9x18x6x2x96x96-training", "5x01235x9x18x6x2x96x96-testing"]
+        splits = [
+            "5x46789x9x18x6x2x96x96-training",
+            "5x01235x9x18x6x2x96x96-testing",
+        ]
         x_datas, c_datas = [], []
 
         for i, split in enumerate(splits):
-            data_fname = os.path.join(files_dir, filename_template.format(splits[i], 'dat'))
-            cat_fname = os.path.join(files_dir, filename_template.format(splits[i], 'cat'))
-            info_fname = os.path.join(files_dir, filename_template.format(splits[i], 'info'))
+            data_fname = os.path.join(
+                files_dir,
+                filename_template.format(splits[i], 'dat'),
+            )
+            cat_fname = os.path.join(
+                files_dir,
+                filename_template.format(splits[i], 'cat'),
+            )
+            info_fname = os.path.join(
+                files_dir,
+                filename_template.format(splits[i], 'info'),
+            )
 
             x_data = _read_binary_matrix(data_fname)
-            x_data = _resize_images(x_data[:, 0])  # Resize data, and only retain data from 1 camera
+            # Resize data, and only retain data from 1 camera
+            x_data = _resize_images(x_data[:, 0])
             c_cat = _read_binary_matrix(cat_fname)
             c_info = _read_binary_matrix(info_fname)
             c_info = np.copy(c_info)
-            c_info[:, 2:3] = c_info[:, 2:3] / 2  # Set azimuth values to be consecutive digits
+            # Set azimuth values to be consecutive digits
+            c_info[:, 2:3] = c_info[:, 2:3] / 2
             c_data = np.column_stack((c_cat, c_info))
 
             x_datas.append(x_data)
@@ -96,5 +128,6 @@ def get_category_full(x_data, c_data):
 #                   Define task function lookups
 # ===========================================================================
 
-SMALLNORB_TASKS = {'category_full':             get_category_full,
-                   }
+SMALLNORB_TASKS = {
+    'category_full': get_category_full,
+}

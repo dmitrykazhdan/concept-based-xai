@@ -33,7 +33,6 @@ class GroupVAEBase(BaseVAE):
         )
 
     def regularizer(self, kl_loss, z_mean, z_logvar, z_sampled):
-        del z_mean, z_logvar, z_sampled
         return self.beta * kl_loss
 
     def _split_sample_pairs(self, x):
@@ -167,7 +166,10 @@ class GroupVAEBase(BaseVAE):
             ("regularizer", regularizer)
         ])
 
-        return {name: self.metrics_dict[name].result() for name in self.metric_names}
+        return {
+            name: self.metrics_dict[name].result()
+            for name in self.metric_names
+        }
 
 
 class GroupVAEArgmax(GroupVAEBase):
@@ -192,7 +194,9 @@ class GroupVAEArgmax(GroupVAEBase):
 
 
 class GroupVAELabels(GroupVAEBase):
-    """Class implementing the group-VAE with labels on which factor is shared."""
+    """
+    Class implementing the group-VAE with labels on which factor is shared.
+    """
 
     def _split_labels(self, inputs):
         return inputs

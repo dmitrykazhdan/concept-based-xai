@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
 
+
 def plot_np_img(img_np, cmap=None):
     '''
     Plot image given as a numpy array

@@ -7,24 +7,38 @@ import tensorflow as tf
 
 from .latentFactorData import LatentFactorData, get_task_data, built_task_fn
 
-CARS_concept_names  = ['elevation', 'azimuth', 'object_type']
+CARS_concept_names = ['elevation', 'azimuth', 'object_type']
 CARS_concept_n_vals = [4, 24, 183]
+
 
 class Cars3D(LatentFactorData):
 
-    def __init__(self, dataset_path, task_name='elevation_full', train_size=0.85, random_state=42):
+    def __init__(
+        self,
+        dataset_path,
+        task_name='elevation_full',
+        train_size=0.85,
+        random_state=42,
+    ):
         '''
         :param dataset_path:  path to the cars dataset folder
         :param task_name: the task to use with the dataset for creating labels
         '''
-        super().__init__(dataset_path=dataset_path, task_name=task_name, num_factors=3,
-                         sample_shape=[64, 64, 3], c_names=CARS_concept_names,
-                         task_fn=CARS3D_TASKS[task_name])
+        super().__init__(
+            dataset_path=dataset_path,
+            task_name=task_name,
+            num_factors=3,
+            sample_shape=[64, 64, 3],
+            c_names=CARS_concept_names,
+            task_fn=CARS3D_TASKS[task_name],
+        )
         self._get_generators(train_size, random_state)
 
     def _load_x_c_data(self):
         x_data = []
-        all_files = [x for x in tf.io.gfile.listdir(self.dataset_path) if ".mat" in x]
+        all_files = [
+            x for x in tf.io.gfile.listdir(self.dataset_path) if ".mat" in x
+        ]
         c_data = []
 
         for i, filename in enumerate(all_files):
@@ -37,7 +51,9 @@ class Cars3D(LatentFactorData):
                 np.tile(i, len(factor1) * len(factor2))
             ])
 
-            c_data += [list(all_factors[j]) for j in range(all_factors.shape[0])]
+            c_data += [
+                list(all_factors[j]) for j in range(all_factors.shape[0])
+            ]
             x_data.append(data_mesh)
 
         x_data = np.concatenate(x_data)
@@ -80,7 +96,7 @@ def get_all_concepts(x_data, c_data):
 # ===========================================================================
 
 CARS3D_TASKS = {
-        'all_concepts':                         get_all_concepts,
-        'elevation_full':                       get_elevation_full,
-        "bin_elevation":                        built_task_fn(lambda c: int(c[0] >= 2)),
+    'all_concepts': get_all_concepts,
+    'elevation_full': get_elevation_full,
+    "bin_elevation": built_task_fn(lambda c: int(c[0] >= 2)),
 }

@@ -1,5 +1,5 @@
 '''
-Metrics to measure concept purity based on the definition of purity by
+Metrics to measure concept purity inspired on the definition of purity by
 Mahinpei et al.'s "Promises and Pitfalls of Black-Box Concept Learning Models"
 (found at https://arxiv.org/abs/2106.13314).
 '''

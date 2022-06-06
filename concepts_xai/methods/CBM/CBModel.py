@@ -353,6 +353,8 @@ class JointConceptBottleneckModel(tf.keras.Model):
             concept_loss = concept_loss / len(predicted_concepts)
             concept_accuracy = concept_accuracy / len(predicted_concepts)
         elif self.single_multiclass_concept:
+            # Then all elements in the bottleneck correspond to a single
+            # concept that is a multi-class concept
             concept_loss += \
                 tf.keras.losses.SparseCategoricalCrossentropy(
                     from_logits=self.pass_concept_logits,

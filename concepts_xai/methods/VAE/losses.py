@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow_probability as tfp
 import tensorflow as tf
 
+
 def bernoulli_loss(
     true_images,
     reconstructed_images,
@@ -89,4 +90,3 @@ def l2_loss_wrapper(activation="logits"):
         return l2_loss(true_images, reconstructed_images, activation)
 
     return loss_fn
-

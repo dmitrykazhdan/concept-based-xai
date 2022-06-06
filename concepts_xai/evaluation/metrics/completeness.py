@@ -16,7 +16,7 @@ from sklearn.model_selection import train_test_split
 ## Helper Functions
 ################################################################################
 
-def _get_default_model(num_concepts, num_hidden_acts):
+def _get_default_model(num_concepts, num_hidden_acts, end_activation=None):
     """
     Helper function that returns a simple 3-layer ReLU MLP model with a hidden
     layer with 500 activation in it.
@@ -38,9 +38,10 @@ def _get_default_model(num_concepts, num_hidden_acts):
         ),
         tf.keras.layers.Dense(
             num_hidden_acts,
-            activation=None,
+            activation=end_activation,
         ),
     ])
+
 
 ################################################################################
 ## Concept Score Functions

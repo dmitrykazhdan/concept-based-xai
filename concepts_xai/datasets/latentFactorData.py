@@ -86,7 +86,6 @@ class LatentFactorData(object):
         return self.data_gen_train, self.data_gen_test, self.c_names
 
 
-
 # ===========================================================================
 #                   Task definition utility functions
 # ===========================================================================

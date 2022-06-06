@@ -1,6 +1,8 @@
 import concepts_xai.evaluation.metrics.completeness as completeness
+import numpy as np
 import tensorflow as tf
 import tensorflow.keras.backend as K
+import scipy
 
 '''
 Re-implementation of the "On Completeness-aware Concept-Based Explanations in
@@ -44,7 +46,7 @@ class TopicModel(tf.keras.Model):
             seed=seed,
         )
 
-        # Initialise our topic vector tensor which we will learn
+        # Initialize our topic vector tensor which we will learn
         # as part of our training
         if initial_topic_vector is not None:
             self.topic_vector = self.add_weight(
@@ -67,7 +69,7 @@ class TopicModel(tf.keras.Model):
                 trainable=True,
             )
 
-        # Initialise the g model which will be in charge of reconstructing
+        # Initialize the g model which will be in charge of reconstructing
         # the model latent activations from the concept scores alone
         self.g_model = g_model
         if self.g_model is None:
@@ -247,8 +249,9 @@ class TopicModel(tf.keras.Model):
 
     def call(self, x, **kwargs):
         concept_scores = self.concept_scores(x)
-        predicted_labels = y_pred = self.concepts_to_labels_model(
+        predicted_labels = self.concepts_to_labels_model(
             self.g_model(concept_scores),
             training=False,
         )
         return predicted_labels, concept_scores
+

@@ -16,17 +16,26 @@ class ItCModel(object):
         self.params = params
 
         # Retrieve the layers to use for hidden representations
-        self.layer_ids = params.get("layer_ids", [i for i in range(len(model.layers))])
+        self.layer_ids = params.get(
+            "layer_ids",
+            [i for i in range(len(model.layers))],
+        )
         if self.layer_ids is None:
             self.layer_ids = [i for i in range(len(model.layers))]
         # Retrieve the corresponding layer names
-        self.layer_names = params.get("layer_names", ["Layer_" + str(i) for i in range(len(model.layers))])
+        self.layer_names = params.get(
+            "layer_names",
+            ["Layer_" + str(i) for i in range(len(model.layers))],
+        )
 
         # Set number of parameters
         self.n_concepts = params['n_concepts']
 
         # Retrieve the concept names
-        self.concept_names = params.get("concept_names", ["Concept_" + str(i) for i in range(self.n_concepts)])
+        self.concept_names = params.get(
+            "concept_names",
+            ["Concept_" + str(i) for i in range(self.n_concepts)],
+        )
 
         # Batch size to use during computation
         self.batch_size = params.get("batch_size", 128)
@@ -51,7 +60,6 @@ class ItCModel(object):
             raise ValueError("Non-implemented method")
 
         return clf, semi_supervised
-
 
     def _get_layer_concept_predictor_model(self, h_data_l, c_data_l, h_data_u):
         '''
@@ -80,7 +88,11 @@ class ItCModel(object):
             clf, semi_supervised = self.get_clf()
 
         # Split the labelled data for train/test
-        x_train, x_test, y_train, y_test = train_test_split(x_data_l, y_data_l, test_size=0.15)
+        x_train, x_test, y_train, y_test = train_test_split(
+            x_data_l,
+            y_data_l,
+            test_size=0.15,
+        )
 
         # Combine with unlabelled data, if using a SSCC method
         if semi_supervised:
@@ -95,80 +107,112 @@ class ItCModel(object):
 
         return clf, pred_acc
 
-
     def train(self, ds_l, ds_u):
         '''
         Compute a dictionary with structure: layer --> concept --> classifier
-        i.e., the dictionary returns which clf to use to predict a given concept, from a given layer
-        :param ds_l: labelled concept dataset, consisting of tuples (input data, concept data)
-        :param ds_u: unlabelled dataset, consisting of (input data) only, without concept labels
+        i.e., the dictionary returns which clf to use to predict a given
+            concept, from a given layer
+        :param ds_l: labelled concept dataset, consisting of tuples
+            (input data, concept data)
+        :param ds_u: unlabelled dataset, consisting of (input data) only,
+            without concept labels
         '''
 
         # Load all concept data into a numpy array
         c_data_l = np.array([elem[1].numpy() for elem in ds_l])
 
-        self.model_ensemble   = {}
+        self.model_ensemble = {}
         self.model_accuracies = {}
 
         # Compute activations for specified layers
-        h_data_ls = compute_activation_per_layer(ds_l, self.layer_ids, self.model,
-                                                 aggregation_function=flatten_activations)
-        h_data_us = compute_activation_per_layer(ds_u, self.layer_ids, self.model,
-                                                 aggregation_function=flatten_activations)
+        h_data_ls = compute_activation_per_layer(
+            ds_l,
+            self.layer_ids,
+            self.model,
+            aggregation_function=flatten_activations,
+        )
+        h_data_us = compute_activation_per_layer(
+            ds_u,
+            self.layer_ids,
+            self.model,
+            aggregation_function=flatten_activations,
+        )
 
         for i, layer_id in enumerate(self.layer_ids):
             print("-" * 20)
-            print("Processing layer ", str(i + 1), " of ", str(len(self.layer_ids)), ":", self.model.layers[layer_id].name)
+            print(
+                "Processing layer ",
+                str(i + 1),
+                " of ", str(len(self.layer_ids)),
+                ":",
+                self.model.layers[layer_id].name,
+            )
             # Retrieve activations for next layer
             activations_l = h_data_ls[i]
             activations_u = h_data_us[i]
 
-            output_layer                        = self.model.layers[layer_id]
-            self.model_ensemble[output_layer]   = []
+            output_layer = self.model.layers[layer_id]
+            self.model_ensemble[output_layer] = []
             self.model_accuracies[output_layer] = []
 
             # Generate predictive models for every concept
             for c in range(self.n_concepts):
-                clf, pred_acc = self._get_layer_concept_predictor_model(activations_l, c_data_l[:, c], activations_u)
+                clf, pred_acc = self._get_layer_concept_predictor_model(
+                    activations_l,
+                    c_data_l[:, c],
+                    activations_u,
+                )
                 self.model_ensemble[output_layer].append(clf)
                 self.model_accuracies[output_layer].append(pred_acc)
 
-            print("Processed layer ", str(i + 1), " of ", str(len(self.layer_ids)))
+            print(
+                "Processed layer ",
+                str(i + 1),
+                " of ",
+                str(len(self.layer_ids)),
+            )
 
         # Initialise concept predictors with models in the first layer
         # Consists of an array of size |concepts|, in which
-        # The element arr[i] is the Layer Id of the layer to use when predicting that concept
-        self.concept_predictor_layer_ids = [self.layer_ids[0] for _ in range(self.n_concepts)]
+        # The element arr[i] is the Layer Id of the layer to use when predicting
+        # that concept
+        self.concept_predictor_layer_ids = [
+            self.layer_ids[0] for _ in range(self.n_concepts)
+        ]
 
-        # For every concept, identify the layer with the best clf predictive accuracy
+        # For every concept, identify the layer with the best clf predictive
+        # accuracy
         for c in range(self.n_concepts):
             max_acc = -1
             for i, layer_id in enumerate(self.layer_ids):
                 layer = self.model.layers[layer_id]
-                acc   = self.model_accuracies[layer][c]
+                acc = self.model_accuracies[layer][c]
                 if acc > max_acc:
                     max_acc = acc
                     self.concept_predictor_layer_ids[c] = layer_id
 
-
     def predict_concepts(self, ds):
         '''
         Predict concept values from given data
-        :param ds: tensorflow dataset of the data (has to have a known cardinality)
+        :param ds: tensorflow dataset of the data (has to have a known
+            cardinality)
         '''
 
-        n_samples    = int(ds.cardinality().numpy())
+        n_samples = int(ds.cardinality().numpy())
         concept_vals = np.zeros((n_samples, self.n_concepts), dtype=float)
 
         for c in range(self.n_concepts):
             # Retrieve clf corresponding to concept c
-            layer_id     = self.concept_predictor_layer_ids[c]
+            layer_id = self.concept_predictor_layer_ids[c]
             output_layer = self.model.layers[layer_id]
-            clf          = self.model_ensemble[output_layer][c]
+            clf = self.model_ensemble[output_layer][c]
 
             # Compute activations for that layer
             output_layer = self.model.layers[layer_id]
-            reduced_model = tf.keras.Model(inputs=self.model.inputs, outputs=[output_layer.output])
+            reduced_model = tf.keras.Model(
+                inputs=self.model.inputs,
+                outputs=[output_layer.output],
+            )
             hidden_features = reduced_model.predict(ds.batch(self.batch_size))
             clf_data = flatten_activations(hidden_features)
 
@@ -193,30 +237,40 @@ def flatten_activations(x_data):
     return flattened
 
 
-def compute_activation_per_layer(ds, layer_ids, model, batch_size=128,
-                                 aggregation_function=flatten_activations):
+def compute_activation_per_layer(
+    ds,
+    layer_ids,
+    model,
+    batch_size=128,
+    aggregation_function=flatten_activations,
+):
     '''
     Compute activations of input data for 'layer_ids' layers
     For every layer, aggregate values using 'aggregation_function'
 
-    Returns a list L of size |layer_ids|, in which element L[i] is the activations
-    computed from the model layer model.layers[layer_ids[i]], processed by the aggregation function
+    Returns a list L of size |layer_ids|, in which element L[i] is the
+    activations computed from the model layer model.layers[layer_ids[i]],
+    processed by the aggregation function
 
     :param ds: tf.dataset returning the input data
     :param layer_ids: list of indices, indicating model layers to use
     :param model: tf.Keras model to compute the activations from
     :param batch_size: batch size to use during processing
-    :param aggregation_function: aggregation function for aggregating the activation values
+    :param aggregation_function: aggregation function for aggregating the
+        activation values
     '''
 
     hidden_features_list = []
 
     for layer_id in layer_ids:
         # Compute and aggregate hidden activations
-        output_layer    = model.layers[layer_id]
-        reduced_model   = tf.keras.Model(inputs=model.inputs, outputs=output_layer.output)
+        output_layer = model.layers[layer_id]
+        reduced_model = tf.keras.Model(
+            inputs=model.inputs,
+            outputs=output_layer.output,
+        )
         hidden_features = reduced_model.predict(ds.batch(batch_size))
-        flattened       = aggregation_function(hidden_features)
+        flattened = aggregation_function(hidden_features)
 
         hidden_features_list.append(flattened)
 
